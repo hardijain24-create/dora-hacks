@@ -3,14 +3,14 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Silent Interpreter',
-  description: 'A cinematic, human-centered bridge from Indian Sign Language to speech and text.',
+  title: 'Silent Interpreter — Communication Should Never Need A Translator',
+  description: 'A real-time Indian Sign Language interpreter that bridges gesture and voice — in hospitals, restaurants, airports, classrooms, and everywhere in between.',
   generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#F6F4EF',
+  themeColor: '#2BB5A8',
 }
 
 export default function RootLayout({
