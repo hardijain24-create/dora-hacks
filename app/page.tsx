@@ -1,932 +1,1851 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDown, ArrowRight, ArrowUpRight, Check, ChevronDown, CircleDot,
-  CloudUpload, Coffee, GraduationCap, HeartPulse, Menu, Mic, Pause, Plane,
-  Play, Radio, ScanFace, Sparkles, Square, TrainFront, Upload, Video,
-  Volume2, Waves, X,
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react'
+import {
+  ArrowRight, ArrowUpRight, Check, ChevronDown,
+  CloudUpload, Menu, Pause, Play, Radio, ScanFace, Sparkles,
+  Square, Upload, Video, Volume2, Waves, X,
 } from 'lucide-react'
 
-const contexts = [
-  { id: 'hospital' as const, label: 'Hospital', icon: HeartPulse, emoji: '🏥', gesture: 'Open Palm', english: 'I need help finding my appointment.', hindi: 'मुझे अपनी अपॉइंटमेंट में मदद चाहिए।', confidence: 96 },
-  { id: 'restaurant' as const, label: 'Restaurant', icon: Coffee, emoji: '☕', gesture: 'Point & Cup', english: 'One coffee, please.', hindi: 'एक कॉफ़ी दे दीजिए।', confidence: 94 },
-  { id: 'airport' as const, label: 'Airport', icon: Plane, emoji: '✈️', gesture: 'Directional Sign', english: 'Where is Gate 12?', hindi: 'गेट 12 कहाँ है?', confidence: 92 },
-  { id: 'metro' as const, label: 'Metro', icon: TrainFront, emoji: '🚇', gesture: 'Two Fingers', english: 'Which platform goes to the city centre?', hindi: 'शहर के केंद्र के लिए कौन सा प्लेटफॉर्म है?', confidence: 91 },
-  { id: 'classroom' as const, label: 'Classroom', icon: GraduationCap, emoji: '📚', gesture: 'Raised Hand', english: 'Could you explain this lesson again?', hindi: 'क्या आप यह पाठ फिर से समझा सकते हैं?', confidence: 95 },
+/* ═══════════════════════════════════════════════════════
+   SIMULATION DATA  —  replace simulateRecognition() with
+   the real model later without touching any UI component
+═══════════════════════════════════════════════════════ */
+
+export type RecognitionResult = {
+  id: string
+  gesture: string
+  emoji: string
+  english: string
+  hindi: string
+  confidence: number
+  context: string
+}
+
+export const DEMO_GESTURES: RecognitionResult[] = [
+  {
+    id: 'open-palm',
+    gesture: 'Open Palm',
+    emoji: '🤚',
+    english: 'I need help finding my appointment.',
+    hindi: 'मुझे अपनी अपॉइंटमेंट में मदद चाहिए।',
+    confidence: 96,
+    context: 'Hospital',
+  },
+  {
+    id: 'raised-hand',
+    gesture: 'Raised Hand',
+    emoji: '✋',
+    english: 'Could you explain this again?',
+    hindi: 'क्या आप यह फिर से समझा सकते हैं?',
+    confidence: 93,
+    context: 'Classroom',
+  },
+  {
+    id: 'point',
+    gesture: 'Point',
+    emoji: '☝️',
+    english: 'Where is Gate 12?',
+    hindi: 'गेट 12 कहाँ है?',
+    confidence: 91,
+    context: 'Airport',
+  },
+  {
+    id: 'thumbs-up',
+    gesture: 'Thumbs Up',
+    emoji: '👍',
+    english: 'Yes, thank you.',
+    hindi: 'जी, शुक्रिया।',
+    confidence: 94,
+    context: 'General',
+  },
+  {
+    id: 'wave',
+    gesture: 'Wave',
+    emoji: '👋',
+    english: 'Hello, nice to meet you.',
+    hindi: 'नमस्ते, आपसे मिलकर अच्छा लगा।',
+    confidence: 89,
+    context: 'General',
+  },
 ]
 
-const UNIVERSE_LAYOUT = [
-  { idx: 2, cx: 50, cy: 13 }, { idx: 1, cx: 84, cy: 38 }, { idx: 4, cx: 71, cy: 78 },
-  { idx: 3, cx: 29, cy: 78 }, { idx: 0, cx: 16, cy: 38 },
-]
+export function simulateRecognition(gestureId: string): RecognitionResult {
+  return DEMO_GESTURES.find(g => g.id === gestureId) ?? DEMO_GESTURES[0]
+}
 
-const PIPELINE_SIMPLE = [
-  { step: '01', label: 'Gesture', sub: 'Your hand speaks first.', highlight: false },
-  { step: '02', label: 'Understanding', sub: 'MediaPipe reads each landmark.', highlight: false },
-  { step: '03', label: 'Translation', sub: 'LSTM maps the sequence to meaning.', highlight: true },
-  { step: '04', label: 'Voice', sub: 'IndicTrans2 speaks it in your language.', highlight: false },
-]
-
-const PIPELINE_FULL = [
-  { label: 'Camera', sub: 'input' }, { label: 'MediaPipe', sub: 'vision' },
-  { label: 'Landmarks', sub: 'vision' }, { label: 'Sliding Window', sub: 'model' },
-  { label: 'LSTM', sub: 'model' }, { label: 'English', sub: 'language' },
-  { label: 'IndicTrans2', sub: 'language' }, { label: 'Hindi', sub: 'language' },
-  { label: 'Speech API', sub: 'output' }, { label: 'Replay', sub: 'output' },
-]
-
-const DATASETS = [
-  { name: 'INCLUDE', meta: '4,287 videos', purpose: 'Isolated ISL words', role: 'A clear baseline for recognizing individual gestures.', mark: 'IN' },
-  { name: 'ISLTranslate', meta: '31,000+ samples', purpose: 'Continuous sentence translation', role: 'Teaches models how meaning flows across sequences.', mark: 'IS' },
-  { name: 'ISL-CSLTR', meta: '5,000 sentences', purpose: 'Continuous sign recognition', role: 'Supports temporal modeling and natural signing.', mark: 'CS' },
-  { name: 'CISLR', meta: '700+ glosses', purpose: 'Large-vocabulary ISL', role: 'Adds real-world breadth to the research desk.', mark: 'CI' },
-  { name: 'ISL-FS', meta: '36 classes', purpose: 'Alphabet and numbers', role: 'Helps spell the words that gesture vocabularies miss.', mark: 'FS' },
-]
-
-const ROADMAP = ['Hackathon MVP', 'Continuous ISL', 'Transformer Models', 'Offline Edge AI', '3D Avatar', 'Smart Glasses', 'Universal Communication']
-
+/* ═══════════════════════════════════════════════════════
+   LANDMARK GEOMETRY  (for decorative SVG overlay)
+═══════════════════════════════════════════════════════ */
 const LM_PTS: [number, number][] = [
-  [50,78],[48,65],[45,55],[44,47],[42,41],[52,44],[53,32],[54,26],[55,21],
-  [57,45],[59,31],[60,24],[61,19],[62,47],[64,35],[65,29],[66,25],
+  [50,78],[48,65],[45,55],[44,47],[42,41],
+  [52,44],[53,32],[54,26],[55,21],
+  [57,45],[59,31],[60,24],[61,19],
+  [62,47],[64,35],[65,29],[66,25],
   [66,50],[67,41],[67,36],[68,32],
 ]
 const LM_CONN: [number,number][] = [
-  [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],
-  [0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17],
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17],
 ]
 
-const FLOAT_WORDS = [
-  { word: 'Hello',      x: 82, y: 14, delay: 1.3 },
-  { word: 'Understood', x: 88, y: 65, delay: 0.6 },
-  { word: 'Language',   x: 74, y: 88, delay: 0.3 },
+/* ═══════════════════════════════════════════════════════
+   DATASETS / ROADMAP CONSTANTS
+═══════════════════════════════════════════════════════ */
+const DATASETS = [
+  { name: 'INCLUDE',     meta: '4,287 videos',    purpose: 'Isolated ISL words',             role: 'A clear baseline for recognizing individual gestures.',             mark: 'IN' },
+  { name: 'ISLTranslate',meta: '31,000+ samples', purpose: 'Continuous sentence translation', role: 'Teaches models how meaning flows across sequences.',                mark: 'IS' },
+  { name: 'ISL-CSLTR',  meta: '5,000 sentences',  purpose: 'Continuous sign recognition',    role: 'Supports temporal modeling and natural signing.',                   mark: 'CS' },
+  { name: 'CISLR',      meta: '700+ glosses',     purpose: 'Large-vocabulary ISL',            role: 'Adds real-world breadth to the research desk.',                    mark: 'CI' },
+  { name: 'ISL-FS',     meta: '36 classes',        purpose: 'Alphabet and numbers',           role: 'Helps spell the words that gesture vocabularies miss.',            mark: 'FS' },
 ]
 
-type CtxId = (typeof contexts)[number]['id']
-type Ctx = (typeof contexts)[number]
-type Replay = { time: string; gesture: string; english: string; hindi: string; confidence: number }
+const ROADMAP = [
+  { label: 'Hackathon MVP',         active: true  },
+  { label: 'Continuous ISL',        active: false },
+  { label: 'Transformer Models',    active: false },
+  { label: 'Offline Edge AI',       active: false },
+  { label: '3D Avatar Output',      active: false },
+  { label: 'Smart Glasses',         active: false },
+  { label: 'Universal Communication', active: false },
+]
 
-function Mark() {
+const PIPELINE_FULL = [
+  { label: 'Camera',        sub: 'input',    cat: 'input'    },
+  { label: 'MediaPipe',     sub: 'vision',   cat: 'vision'   },
+  { label: 'Landmarks',     sub: 'vision',   cat: 'vision'   },
+  { label: 'Sliding Window',sub: 'model',    cat: 'model'    },
+  { label: 'LSTM',          sub: 'model',    cat: 'model'    },
+  { label: 'English',       sub: 'language', cat: 'language' },
+  { label: 'IndicTrans2',   sub: 'language', cat: 'language' },
+  { label: 'Hindi',         sub: 'language', cat: 'language' },
+  { label: 'Speech API',    sub: 'output',   cat: 'output'   },
+  { label: 'Replay',        sub: 'output',   cat: 'output'   },
+]
+
+/* ═══════════════════════════════════════════════════════
+   SMALL REUSABLE COMPONENTS
+═══════════════════════════════════════════════════════ */
+
+function NavMark() {
   return (
-    <span className="mark" aria-hidden="true">
+    <span className="nav-mark" aria-hidden="true">
       <span /><span /><span />
     </span>
   )
-}
-
-function DemoBadge({ children = 'Demo Simulation' }: { children?: string }) {
-  return <span className="demo-badge"><CircleDot size={9} /> {children}</span>
 }
 
 function SectionLabel({ children }: { children: string }) {
   return <p className="section-label">{children}</p>
 }
 
-function DeviceScreen({ ctx, lang, onLang, isRunning, cameraGranted, videoRef, mini = false }: {
-  ctx: Ctx; lang: 'english'|'hindi'; onLang: (l:'english'|'hindi')=>void
-  isRunning: boolean; cameraGranted: boolean; videoRef: React.RefObject<HTMLVideoElement|null>; mini?: boolean
-}) {
-  const [flowStep, setFlowStep] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout>[]>([])
-
-  useEffect(() => {
-    timerRef.current.forEach(clearTimeout); timerRef.current = []
-    if (!isRunning) { setFlowStep(0); return }
-    setFlowStep(0)
-    ;[1,2,3,4].forEach((step, i) => {
-      const t = setTimeout(() => setFlowStep(step), i * 520 + 200)
-      timerRef.current.push(t)
-    })
-    return () => timerRef.current.forEach(clearTimeout)
-  }, [ctx.id, isRunning])
-
-  const wBars = useMemo(() => Array.from({ length: 12 }, (_, i) => 18 + ((i*17+5)%56)), [])
-  const circumference = 2 * Math.PI * 9
-
+function Dot({ color = '', pulse = false }: { color?: string; pulse?: boolean }) {
   return (
-    <div className="device-frame">
-      <div className="device-notch" aria-hidden="true">
-        <span className="notch-dot"/><span className="notch-cam"/><span className="notch-dot"/>
-      </div>
-      <div className="device-screen-bg">
-        <div className="device-status">
-          <span className="status-left">
-            <span className={`sig-dot ${isRunning?'on':''}`}/>
-            {isRunning?'tracking gesture':'ready to explore'}
-          </span>
-          <DemoBadge/>
-        </div>
-        <div className="device-cam">
-          {cameraGranted && <video ref={videoRef} autoPlay muted playsInline aria-hidden="true"/>}
-          {!cameraGranted && (
-            <div className="signer-wrap" aria-hidden="true">
-              <div className="signer"><i className="sh"/><i className="sb"/><i className="sa sa-l"/><i className="sa sa-r"/><i className="shand"/></div>
+    <span
+      className={['dot', color, pulse ? 'pulse' : ''].filter(Boolean).join(' ')}
+      aria-hidden="true"
+    />
+  )
+}
+
+function Badge({ children, sim = false }: { children: React.ReactNode; sim?: boolean }) {
+  return <span className={`badge ${sim ? 'sim' : ''}`}>{children}</span>
+}
+
+/* ═══════════════════════════════════════════════════════
+   PROCESSING PIPELINE COMPONENT
+═══════════════════════════════════════════════════════ */
+const PIPE_STAGES = ['Camera', 'Vision', 'Gesture', 'Meaning', 'Voice']
+
+function ProcessingPipeline({ activeStage }: { activeStage: number }) {
+  return (
+    <div className="pipeline-row-container">
+      {PIPE_STAGES.map((stage, i) => (
+        <div key={stage} className="pipe-node-wrap">
+          <div className="pipe-node">
+            <div className={`pipe-dot ${i <= activeStage ? 'active' : ''}`} />
+            <span className={`pipe-label ${i <= activeStage ? 'active' : ''}`}>{stage}</span>
+          </div>
+          {i < PIPE_STAGES.length - 1 && (
+            <div className="pipe-connector">
+              <div className={`pipe-connector-fill ${i < activeStage ? 'active' : ''}`} />
             </div>
           )}
-          <div className="device-cam-grid" aria-hidden="true"/>
-          <svg className="device-lm-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {isRunning && (<>
-              <circle className="conf-ring-bg" cx="88" cy="12" r="9"/>
-              <circle className="conf-ring" cx="88" cy="12" r="9"
-                strokeDasharray={circumference}
-                strokeDashoffset={circumference*(1-ctx.confidence/100)}
-                style={{transform:'rotate(-90deg)',transformOrigin:'88px 12px'}}
-              />
-            </>)}
-            {LM_CONN.map(([a,b],i) => (
-              <line key={i} className={`lm-line ${isRunning&&flowStep>=1?'on':''}`}
-                x1={LM_PTS[a][0]} y1={LM_PTS[a][1]} x2={LM_PTS[b][0]} y2={LM_PTS[b][1]}
-                style={{transitionDelay:`${i*12}ms`}}
-              />
-            ))}
-            {LM_PTS.map(([x,y],i) => (
-              <circle key={i} className={`lm-dot ${isRunning&&flowStep>=1?'on':''}`}
-                cx={x} cy={y} r="1.3" style={{transitionDelay:`${i*20}ms`}}
-              />
-            ))}
-          </svg>
-          {isRunning && <div className="gesture-chip"><ScanFace size={9}/> {ctx.gesture}</div>}
         </div>
-        {!mini && (
-          <div className="device-track">
-            <span className="track-chip">
-              <span className={`sig-dot ${isRunning?'on':''}`} style={{width:5,height:5}}/>
-              {isRunning?ctx.gesture:'awaiting gesture'}
-            </span>
-            <span style={{fontFamily:'var(--font-mono)',fontSize:9}}>{isRunning?'28 fps':'--'}</span>
-            <div className="lang-pair" role="group" aria-label="Output language">
-              <button className={lang==='english'?'on':''} onClick={()=>onLang('english')}>EN</button>
-              <button className={lang==='hindi'?'on':''} onClick={()=>onLang('hindi')}>HI</button>
+      ))}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   WORD STREAM COMPONENT
+═══════════════════════════════════════════════════════ */
+function WordStream({
+  isRunning,
+  result,
+  lang,
+}: {
+  isRunning: boolean
+  result: RecognitionResult | null
+  lang: 'english' | 'hindi'
+}) {
+  const [words, setWords] = useState<string[]>([])
+  const [hindiVisible, setHindiVisible] = useState(false)
+  const [latestIdx, setLatestIdx] = useState(-1)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    timers.current.forEach(clearTimeout)
+    timers.current = []
+    setWords([])
+    setHindiVisible(false)
+    setLatestIdx(-1)
+    if (!isRunning || !result) return
+
+    const sentence = result.english
+    const ws = sentence.split(' ')
+    ws.forEach((_, i) => {
+      const t = setTimeout(() => {
+        setWords(prev => [...prev, ws[i]])
+        setLatestIdx(i)
+      }, 360 + i * 240)
+      timers.current.push(t)
+    })
+    const hiDelay = 360 + ws.length * 240 + 500
+    const ht = setTimeout(() => setHindiVisible(true), hiDelay)
+    timers.current.push(ht)
+    return () => timers.current.forEach(clearTimeout)
+  }, [isRunning, result?.id])
+
+  const isTyping = isRunning && result && words.length < result.english.split(' ').length
+
+  if (!isRunning || !result) {
+    return (
+      <div className="word-stream">
+        <p className="word-stream-idle">Start simulation to see language generated live</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="word-stream" aria-live="polite" aria-label="Generated text">
+        {lang === 'english'
+          ? words.map((w, i) => (
+              <span key={`${result.id}-${i}`} className={`word-token ${i === latestIdx ? 'new' : ''}`}>
+                {w}
+              </span>
+            ))
+          : (hindiVisible
+              ? <span className="word-token">{result.hindi}</span>
+              : null
+            )
+        }
+        {isTyping && <span className="word-cursor" aria-hidden="true" />}
+      </div>
+      {lang === 'english' && (
+        <p className="interp-hindi" style={{ opacity: hindiVisible ? 1 : 0 }}>
+          {result.hindi}
+        </p>
+      )}
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   SPEECH CONTROLS COMPONENT
+═══════════════════════════════════════════════════════ */
+function SpeechControls({
+  text,
+  disabled,
+}: {
+  text: string
+  disabled: boolean
+}) {
+  const [speaking, setSpeaking] = useState(false)
+  const [ready, setReady] = useState(false)
+  const uttRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const waveHeights = useMemo(() => Array.from({ length: 18 }, (_, i) => 8 + ((i * 13) % 28)), [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onVoices = () => setReady(speechSynthesis.getVoices().length > 0)
+    speechSynthesis.addEventListener('voiceschanged', onVoices)
+    onVoices()
+    return () => {
+      speechSynthesis.removeEventListener('voiceschanged', onVoices)
+      speechSynthesis.cancel()
+    }
+  }, [])
+
+  useEffect(() => {
+    setSpeaking(false)
+    speechSynthesis.cancel()
+  }, [text])
+
+  function speak() {
+    if (!text || disabled) return
+    speechSynthesis.cancel()
+    const u = new SpeechSynthesisUtterance(text)
+    const voices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'))
+    if (voices.length) u.voice = voices[0]
+    u.rate = 0.92
+    u.onend = () => setSpeaking(false)
+    u.onerror = () => setSpeaking(false)
+    uttRef.current = u
+    speechSynthesis.speak(u)
+    setSpeaking(true)
+  }
+
+  function stop() {
+    speechSynthesis.cancel()
+    setSpeaking(false)
+  }
+
+  return (
+    <div className="speech-row">
+      {speaking ? (
+        <button className="btn btn-sm btn-primary" onClick={stop} aria-label="Stop speech">
+          <Square size={11} fill="currentColor" /> Stop
+        </button>
+      ) : (
+        <button
+          className="btn btn-sm btn-teal"
+          onClick={speak}
+          disabled={disabled}
+          aria-label="Speak generated text"
+        >
+          <Volume2 size={13} /> Speak
+        </button>
+      )}
+      <div className={`waveform ${speaking ? 'active' : ''}`} aria-hidden="true">
+        {waveHeights.map((h, i) => (
+          <i
+            key={i}
+            style={{
+              height: h,
+              animationDelay: `${i * 0.055}s`,
+              animationDuration: `${0.55 + (i % 3) * 0.12}s`,
+            }}
+          />
+        ))}
+      </div>
+      <span className="speak-status">
+        {speaking ? '🔊 Speaking…' : ready ? 'Ready to speak' : 'Web Speech API'}
+      </span>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   DEMO GESTURE SELECTOR
+═══════════════════════════════════════════════════════ */
+function DemoGestureSelector({
+  selected,
+  onChange,
+}: {
+  selected: string
+  onChange: (id: string) => void
+}) {
+  return (
+    <div className="gesture-selector-card">
+      <p className="gesture-selector-label">
+        <ScanFace size={11} />
+        Demo gestures · simulation
+      </p>
+      <div className="gesture-pills" role="group" aria-label="Select demo gesture">
+        {DEMO_GESTURES.map(g => (
+          <button
+            key={g.id}
+            className={`gesture-pill ${selected === g.id ? 'active' : ''}`}
+            onClick={() => onChange(g.id)}
+            aria-pressed={selected === g.id}
+            aria-label={`Demo gesture: ${g.gesture}`}
+          >
+            {g.emoji} {g.gesture}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   CAMERA PREVIEW + CONTROLS COMPONENT
+═══════════════════════════════════════════════════════ */
+type CamState = 'idle' | 'requesting' | 'active' | 'recording' | 'stopped' | 'error'
+type CamError = 'denied' | 'notfound' | 'busy' | 'unsupported' | 'unknown' | null
+
+/* ── Helper: pick best supported MediaRecorder MIME type ── */
+function getSupportedMimeType(): string {
+  const candidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4',
+  ]
+  for (const t of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t
+  }
+  return ''
+}
+
+function CameraPreview({
+  isRunning,
+  result,
+  camState,
+  setCamState,
+  onCamera,
+  videoRef,
+  streamRef,
+  elapsed,
+  camError,
+}: {
+  isRunning: boolean
+  result: RecognitionResult | null
+  camState: CamState
+  setCamState: (s: CamState) => void
+  onCamera: () => Promise<void>
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  streamRef: React.RefObject<MediaStream | null>
+  elapsed: number
+  camError: CamError
+}) {
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const [replayUrl, setReplayUrl] = useState<string | null>(null)
+  const [replayMime, setReplayMime] = useState('video/webm')
+  const replayRef = useRef<HTMLVideoElement | null>(null)
+  const [replayPlaying, setReplayPlaying] = useState(false)
+  const [recorderError, setRecorderError] = useState<string | null>(null)
+
+  /* Attach stream to video element whenever camState becomes active/recording.
+     The video element is always in the DOM (just hidden), so videoRef.current
+     is available when this effect runs. */
+  useEffect(() => {
+    if ((camState === 'active' || camState === 'recording') && streamRef.current && videoRef.current) {
+      const vid = videoRef.current
+      if (vid.srcObject !== streamRef.current) {
+        vid.srcObject = streamRef.current
+        vid.play().catch(() => {})
+      }
+    }
+  }, [camState, streamRef, videoRef])
+
+  /* Clean up replay URL when we get a new one */
+  function updateReplayUrl(blob: Blob, mime: string) {
+    setReplayUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(blob)
+    })
+    setReplayMime(mime)
+  }
+
+  function formatTime(s: number) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+  }
+
+  function startRecording() {
+    setRecorderError(null)
+    if (typeof MediaRecorder === 'undefined') {
+      setRecorderError('Recording not supported in this browser.')
+      return
+    }
+    const stream = streamRef.current
+    if (!stream) return
+    const mimeType = getSupportedMimeType()
+    chunksRef.current = []
+    let rec: MediaRecorder
+    try {
+      rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+    } catch {
+      setRecorderError('Could not start recorder — try a different browser.')
+      return
+    }
+    rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    rec.onstop = () => {
+      const effectiveMime = rec.mimeType || mimeType || 'video/webm'
+      const blob = new Blob(chunksRef.current, { type: effectiveMime })
+      updateReplayUrl(blob, effectiveMime)
+      setCamState('stopped')
+    }
+    rec.onerror = () => {
+      setRecorderError('Recording failed unexpectedly.')
+      setCamState('active')
+    }
+    recorderRef.current = rec
+    rec.start(250) // timeslice = collect data every 250 ms
+    setCamState('recording')
+  }
+
+  function stopRecording() {
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop()
+    }
+  }
+
+  function handleDownload() {
+    if (!replayUrl) return
+    const ext = replayMime.includes('mp4') ? 'mp4' : 'webm'
+    const a = document.createElement('a')
+    a.href = replayUrl
+    a.download = `silent-interpreter-recording.${ext}`
+    a.click()
+  }
+
+  const errorMessages: Record<NonNullable<CamError>, string> = {
+    denied:      'Camera access denied. Allow camera in browser settings.',
+    notfound:    'No camera found on this device.',
+    busy:        'Camera is in use by another application.',
+    unsupported: 'getUserMedia is not supported in this browser.',
+    unknown:     'Unable to access camera.',
+  }
+
+  const statusLabel =
+    camState === 'idle'       ? 'Camera ready' :
+    camState === 'requesting' ? 'Requesting…'  :
+    camState === 'active'     ? 'Camera active' :
+    camState === 'recording'  ? `Recording ${formatTime(elapsed)}` :
+    camState === 'error'      ? 'Camera error' :
+                                'Recording stopped'
+
+  const dotColor =
+    camState === 'idle'      ? '' :
+    camState === 'active'    ? 'green' :
+    camState === 'recording' ? 'record' :
+    camState === 'error'     ? 'record' : 'amber'
+
+  const showLiveVideo = camState === 'active' || camState === 'recording'
+
+  return (
+    <div className="camera-card">
+      {/* Header */}
+      <div className="camera-card-header">
+        <div className="camera-card-title">
+          <Video size={11} />
+          Live Camera
+        </div>
+        <div className="camera-card-meta">
+          <Dot color={dotColor} pulse={camState === 'recording'} />
+          {statusLabel}
+          {showLiveVideo && (
+            <span>· LIVE</span>
+          )}
+          <Badge>UI DEMO</Badge>
+        </div>
+      </div>
+
+      {/* Viewport */}
+      <div className={`camera-viewport ${camState === 'recording' ? 'recording' : ''}`}>
+        {/* Corner marks */}
+        <span className="camera-corner tl" /><span className="camera-corner tr" />
+        <span className="camera-corner bl" /><span className="camera-corner br" />
+
+        {/* Scan line — always visible for polish */}
+        <div className="camera-scanline" aria-hidden="true" />
+
+        {/* Camera grid */}
+        {showLiveVideo && (
+          <div className="camera-grid" aria-hidden="true" />
+        )}
+
+        {/* ── LIVE VIDEO element — always in DOM so videoRef is always valid ── */}
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="camera-video"
+          aria-label="Live camera feed"
+          style={{ display: showLiveVideo ? 'block' : 'none' }}
+        />
+
+        {/* Overlays on top of live feed */}
+        {showLiveVideo && (
+          <>
+            {/* Signing guide */}
+            <div className="camera-guide" aria-hidden="true">
+              <span className="camera-guide-label">Signing Area</span>
             </div>
+            {/* LM overlay when running */}
+            {isRunning && (
+              <svg
+                className="camera-lm-svg"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                {LM_CONN.map(([a, b], i) => (
+                  <line
+                    key={i}
+                    stroke="rgba(43,181,168,.32)"
+                    strokeWidth=".7"
+                    x1={LM_PTS[a][0]} y1={LM_PTS[a][1]}
+                    x2={LM_PTS[b][0]} y2={LM_PTS[b][1]}
+                  />
+                ))}
+                {LM_PTS.map(([x, y], i) => (
+                  <circle
+                    key={i}
+                    cx={x} cy={y} r="1.3"
+                    fill="#2BB5A8"
+                    style={{ filter: 'drop-shadow(0 0 2px #2BB5A8)' }}
+                  />
+                ))}
+              </svg>
+            )}
+            {/* Detect chip */}
+            {isRunning && result && (
+              <div className="camera-detect-chip">
+                <ScanFace size={9} /> {result.gesture}
+              </div>
+            )}
+            {/* Timer chip */}
+            {camState === 'recording' && (
+              <div className="camera-timer-chip">
+                <Dot color="record" pulse /> {formatTime(elapsed)}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Replay video (shown when stopped) */}
+        {camState === 'stopped' && replayUrl && (
+          <video
+            ref={replayRef}
+            src={replayUrl}
+            className="camera-video"
+            controls
+            playsInline
+            aria-label="Recording replay"
+            style={{ display: 'block' }}
+          />
+        )}
+
+        {/* Error state */}
+        {camState === 'error' && (
+          <div className="camera-idle">
+            <div className="camera-idle-icon" style={{ color: 'var(--record)' }}>
+              <Video size={22} strokeWidth={1.5} />
+            </div>
+            <span className="camera-idle-label" style={{ color: 'var(--record)', textAlign: 'center', padding: '0 16px' }}>
+              {camError ? errorMessages[camError] : 'Camera error'}
+            </span>
           </div>
         )}
-        <div className="device-flow" aria-live="polite">
-          {!isRunning && <div className="flow-idle">Start simulation to see translation</div>}
-          {isRunning && (<>
-            <div className={`flow-row ${flowStep>=1?'show':''}`}>
-              <span className="flow-icon">👋</span>
-              <div><p className="flow-meta">gesture detected</p><p className="flow-text">{ctx.gesture}</p></div>
-            </div>
-            {flowStep>=1 && <div className={`flow-arrow ${flowStep>=2?'show':''}`}><ArrowDown size={10}/></div>}
-            <div className={`flow-row ${flowStep>=2?'show':''}`} style={{transitionDelay:'.1s'}}>
-              <span className="flow-icon">🌐</span>
-              <div><p className="flow-meta">english</p><p className="flow-text">{ctx.english.split(' ').slice(0,3).join(' ')}…</p></div>
-            </div>
-            {flowStep>=2 && <div className={`flow-arrow ${flowStep>=3?'show':''}`}><ArrowDown size={10}/></div>}
-            <div className={`flow-row ${flowStep>=3?'show':''}`} style={{transitionDelay:'.2s'}}>
-              <span className="flow-icon">🇮🇳</span>
-              <div><p className="flow-meta">hindi</p><p className="flow-text">{ctx.hindi.substring(0,14)}…</p></div>
-            </div>
-            {flowStep>=3 && <div className={`flow-arrow ${flowStep>=4?'show':''}`}><ArrowDown size={10}/></div>}
-            <div className={`flow-row ${flowStep>=4?'show':''}`} style={{transitionDelay:'.3s'}}>
-              <span className="flow-icon">🔊</span>
-              <div>
-                <p className="flow-meta">speaking</p>
-                <div className="mini-wave">{wBars.map((h,i) => <i key={i} style={{height:h*.28,animationDelay:`${i*.06}s`}}/>)}</div>
-              </div>
-            </div>
-          </>)}
-        </div>
-        <div className="device-conf">
-          <span>Confidence</span>
-          <div className="conf-track"><div className="conf-fill" style={{width:isRunning?`${ctx.confidence}%`:'0%'}}/></div>
-          <span className="conf-pct">{isRunning?`${ctx.confidence}%`:'--'}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
 
-function CommunicationUniverse({ selectedId, onSelect, lang }: {
-  selectedId: CtxId; onSelect: (id:CtxId)=>void; lang:'english'|'hindi'
-}) {
-  const [hovered, setHovered] = useState<number|null>(null)
-  const [changing, setChanging] = useState(false)
-  const ctx = useMemo(() => contexts.find(c=>c.id===selectedId)??contexts[0],[selectedId])
-  const wBars = useMemo(() => Array.from({length:8},(_,i)=>10+((i*11+3)%20)),[])
-
-  const handleSelect = useCallback((idx:number) => {
-    const newCtx = contexts[UNIVERSE_LAYOUT.find(n=>n.idx===idx)!?.idx??idx]
-    if (!newCtx||newCtx.id===selectedId) return
-    setChanging(true)
-    setTimeout(()=>{onSelect(newCtx.id);setChanging(false)},280)
-  },[selectedId,onSelect])
-
-  return (
-    <div className="universe-layout">
-      <div className="universe-map" role="region" aria-label="Communication universe map">
-        <div className="universe-bg-grain" aria-hidden="true"/>
-        <svg className="universe-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          {UNIVERSE_LAYOUT.map((node,i) => (
-            <g key={i}>
-              <line className="u-line-bg" x1="50" y1="50" x2={node.cx} y2={node.cy}/>
-              <line className={`u-line ${(hovered===i||contexts[node.idx].id===selectedId)?'lit':''}`} x1="50" y1="50" x2={node.cx} y2={node.cy}/>
-            </g>
-          ))}
-        </svg>
-        <div className="universe-center" aria-hidden="true">
-          <div className="center-orb">
-            <span style={{display:'inline-flex',alignItems:'flex-end',gap:2,width:22,height:22,padding:'3.5px 4.5px'}}>
-              <span style={{display:'block',width:3,height:6,borderRadius:3,background:'#fff'}}/>
-              <span style={{display:'block',width:3,height:10,borderRadius:3,background:'#fff'}}/>
-              <span style={{display:'block',width:3,height:14,borderRadius:3,background:'#fff'}}/>
+        {/* Idle placeholder */}
+        {(camState === 'idle' || camState === 'requesting') && (
+          <div className="camera-idle">
+            <div className="camera-idle-icon">
+              <Video size={22} strokeWidth={1.5} />
+            </div>
+            <span className="camera-idle-label">
+              {camState === 'requesting' ? 'Requesting camera…' : 'Enable camera to begin'}
             </span>
           </div>
-          <p className="center-label">SILENT<br/>INTERPRETER</p>
+        )}
+      </div>
+
+      {/* Recorder error banner */}
+      {recorderError && (
+        <div style={{ padding: '6px 14px', background: 'rgba(229,62,82,.08)', borderTop: '1px solid rgba(229,62,82,.15)', fontSize: 11, color: 'var(--record)' }}>
+          {recorderError}
         </div>
-        {UNIVERSE_LAYOUT.map((node,i) => {
-          const c = contexts[node.idx]; const active = c.id===selectedId
-          return (
-            <button key={c.id} className={`u-node ${active?'active':''}`}
-              style={{left:`${node.cx}%`,top:`${node.cy}%`}}
-              onMouseEnter={()=>setHovered(i)} onMouseLeave={()=>setHovered(null)}
-              onClick={()=>handleSelect(node.idx)}
-              aria-label={`Select ${c.label} context`} aria-pressed={active}
+      )}
+
+      {/* Footer controls */}
+      <div className="camera-card-footer">
+        <div className="camera-footer-info">
+          <Dot color="" />
+          <span>LOCAL CAMERA · SIMULATION</span>
+          {showLiveVideo && (
+            <span>· {result?.context ?? 'General'}</span>
+          )}
+        </div>
+        <div className="camera-controls-row">
+          {(camState === 'idle' || camState === 'error') && (
+            <button
+              className="btn btn-sm btn-teal"
+              onClick={onCamera}
+              aria-label="Enable camera"
             >
-              <span className="u-node-orb">{c.emoji}</span>
-              <span className="u-node-label">{c.label}</span>
+              <Video size={13} /> {camState === 'error' ? 'Try Again' : 'Enable Camera'}
             </button>
-          )
-        })}
-      </div>
-      <div className={`universe-context-card ${changing?'uc-changing':''}`} aria-live="polite">
-        <div className="uc-top"><DemoBadge/><span>{ctx.confidence}% confidence</span></div>
-        <div className="uc-gesture"><span>{ctx.emoji}</span> {ctx.gesture}</div>
-        <p className="uc-english">{lang==='english'?ctx.english:ctx.hindi}</p>
-        {lang==='english' && <p className="uc-hindi">{ctx.hindi}</p>}
-        <div className="uc-footer">
-          <span className="conf-badge"><CircleDot size={8}/> {ctx.confidence}%</span>
-          <div className="uc-wave" style={{marginLeft:'auto'}}>
-            {wBars.map((h,i)=><i key={i} style={{height:h,width:2,borderRadius:2,background:'var(--accent)',opacity:.6}}/>)}
-          </div>
+          )}
+          {camState === 'requesting' && (
+            <button className="btn btn-sm btn-ghost" disabled>
+              <Radio size={13} /> Requesting…
+            </button>
+          )}
+          {camState === 'active' && (
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={startRecording}
+              aria-label="Start recording"
+            >
+              <Radio size={13} /> Record
+            </button>
+          )}
+          {camState === 'recording' && (
+            <button
+              className="btn btn-sm"
+              style={{ background: '#e64050', color: '#fff', borderRadius: 'var(--r-full)', padding: '7px 15px', fontSize: 12, fontWeight: 700 }}
+              onClick={stopRecording}
+              aria-label="Stop recording"
+            >
+              <Square size={11} fill="currentColor" /> Stop Recording
+            </button>
+          )}
+          {camState === 'stopped' && replayUrl && (
+            <>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  if (replayRef.current) {
+                    if (replayRef.current.paused) {
+                      replayRef.current.play()
+                      setReplayPlaying(true)
+                    } else {
+                      replayRef.current.pause()
+                      setReplayPlaying(false)
+                    }
+                  }
+                }}
+                aria-label={replayPlaying ? 'Pause replay' : 'Play recording'}
+              >
+                {replayPlaying ? <Pause size={13} /> : <Play size={13} fill="currentColor" />}
+                {replayPlaying ? 'Pause' : 'Play Recording'}
+              </button>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={handleDownload}
+                aria-label="Download recording"
+              >
+                <CloudUpload size={13} /> Download
+              </button>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  setReplayUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+                  setReplayPlaying(false)
+                  setCamState('active')
+                }}
+                aria-label="Retake recording"
+              >
+                Retake
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
-export default function Page() {
-  const [selectedId, setSelectedId] = useState<CtxId>('hospital')
-  const [lang, setLang] = useState<'english'|'hindi'>('english')
-  const [isRunning, setIsRunning] = useState(false)
-  const [speaking, setSpeaking] = useState(false)
-  const [activeDataset, setActiveDataset] = useState<string|null>(null)
-  const [uploadState, setUploadState] = useState<'idle'|'processing'|'ready'>('idle')
-  const [fileName, setFileName] = useState('')
-  const [replays, setReplays] = useState<Replay[]>([])
-  const [replayPlaying, setReplayPlaying] = useState<number|null>(null)
-  const [cameraGranted, setCameraGranted] = useState(false)
-  const [pinned, setPinned] = useState(false)
-  const [techExpanded, setTechExpanded] = useState(false)
-  const [chipsVisible, setChipsVisible] = useState<boolean[]>([])
-  const [mobileOpen, setMobileOpen] = useState(false)
-
-  const fileRef = useRef<HTMLInputElement>(null)
-  const heroVideoRef = useRef<HTMLVideoElement|null>(null)
-  const liveVideoRef = useRef<HTMLVideoElement|null>(null)
-
-  const ctx = useMemo(()=>contexts.find(c=>c.id===selectedId)??contexts[0],[selectedId])
-  const confidence = isRunning ? ctx.confidence : 0
-  const waveHeights = useMemo(()=>Array.from({length:34},(_,i)=>8+((i*13)%28)),[])
-
-  useEffect(()=>{
-    if (typeof window==='undefined') return
-    const dot = document.querySelector<HTMLElement>('.cursor-dot')
-    if (!dot) return
-    let mx=0,my=0,cx=0,cy=0,raf:number
-    const onMove=(e:MouseEvent)=>{
-      mx=e.clientX; my=e.clientY
-      document.body.style.setProperty('--mx',`${e.clientX}px`)
-      document.body.style.setProperty('--my',`${e.clientY}px`)
-    }
-    function tick(){ cx+=(mx-cx)*.1; cy+=(my-cy)*.1; dot.style.transform=`translate(${cx-20}px,${cy-20}px)`; raf=requestAnimationFrame(tick) }
-    raf=requestAnimationFrame(tick)
-    window.addEventListener('mousemove',onMove,{passive:true})
-    return ()=>{ window.removeEventListener('mousemove',onMove); cancelAnimationFrame(raf) }
-  },[])
-
-  useEffect(()=>{
-    if (typeof window==='undefined') return
-    let lenis:any, rafId:number
-    const init=async()=>{
-      const [{ default: Lenis }, gsapMod, stMod] = await Promise.all([
-        import('lenis'),
-        import('gsap'),
-        import('gsap/ScrollTrigger'),
-      ])
-      const { gsap } = gsapMod
-      const { ScrollTrigger } = stMod
-      gsap.registerPlugin(ScrollTrigger)
-      lenis=new Lenis({duration:1.2,easing:(t:number)=>Math.min(1,1.001-Math.pow(2,-10*t)),smoothWheel:true})
-      lenis.on('scroll',ScrollTrigger.update)
-      function tick(time:number){lenis.raf(time);rafId=requestAnimationFrame(tick)}
-      rafId=requestAnimationFrame(tick)
-      const headline=document.querySelector('.hero-h1')
-      if(headline){
-        const words=(headline.textContent??'').trim().split(/\s+/)
-        headline.innerHTML=words.map((w,i)=>`<span class="hero-word-wrap"><span class="hero-word">${w}${i<words.length-1?'\u00A0':''}</span></span>`).join('')
-        gsap.from('.hero-word',{yPercent:110,duration:0.9,stagger:0.07,ease:'power3.out',delay:0.1})
-      }
-      gsap.from(['.hero-eyebrow','.hero-orb','.hero-sub','.hero-actions','.hero-note','.scroll-cue'],{opacity:0,y:20,duration:0.8,stagger:0.1,ease:'power3.out',delay:0.5})
-      gsap.from('.hero-device-col',{opacity:0,x:36,duration:1.1,ease:'power3.out',delay:0.35})
-      gsap.from('.float-word',{opacity:0,duration:1.2,stagger:0.15,ease:'power2.out',delay:0.8})
-      ScrollTrigger.create({
-        trigger:'.hero',start:'top top',end:'bottom top',
-        onUpdate:(self:any)=>{
-          const p=self.progress
-          gsap.set('.hero-text',{opacity:Math.max(0,1-p*1.9),y:p*-70,scale:1-p*0.045})
-          setPinned(p>0.88)
-        }
-      })
-      document.querySelectorAll('.reveal-h').forEach(el=>{
-        gsap.from(el,{opacity:0,y:34,duration:0.9,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 88%'}})
-      })
-      document.querySelectorAll('.reveal-p').forEach(el=>{
-        gsap.from(el,{opacity:0,y:18,duration:0.8,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 90%'}})
-      })
-      gsap.from('.stat-card',{opacity:0,y:44,stagger:0.12,duration:0.85,ease:'power3.out',scrollTrigger:{trigger:'.stats-grid',start:'top 82%'}})
-      gsap.from('.universe-map',{opacity:0,y:36,duration:1.0,ease:'power3.out',scrollTrigger:{trigger:'.universe-map',start:'top 82%'}})
-      gsap.from('.universe-context-card',{opacity:0,y:22,duration:0.85,ease:'power3.out',delay:0.15,scrollTrigger:{trigger:'.universe-context-card',start:'top 85%'}})
-      if(document.querySelector('.demo-story')){
-        gsap.set(['.ds-scene-2','.ds-scene-4'],{opacity:0,scale:0.9})
-        gsap.set('.ds-scene-3',{opacity:0,scale:0.9,clipPath:'inset(0 100% 0 0)'})
-        gsap.set('.ds-scene-1',{opacity:1,scale:1})
-        const tl=gsap.timeline({scrollTrigger:{trigger:'.demo-story',pin:true,scrub:1.6,start:'top top',end:'+=320%'}})
-        tl
-          .to('.ds-waveform i',{scaleY:2.8,stagger:{each:0.025,from:'center'},duration:0.2,ease:'power2.inOut'},0.05)
-          .to('.ds-scene-1',{opacity:0,scale:0.93,duration:0.2},0.3)
-          .to('.ds-scene-2',{opacity:1,scale:1,duration:0.28},0.3)
-          .to('.ds-ring',{rotation:720,duration:0.38,ease:'none'},0.3)
-          .to('.ds-scene-2',{opacity:0,scale:0.93,duration:0.2},0.68)
-          .to('.ds-scene-3',{opacity:1,scale:1,clipPath:'inset(0 0% 0 0)',duration:0.32},0.68)
-          .to('.ds-scene-3',{opacity:0,duration:0.2},1.05)
-          .to('.ds-scene-4',{opacity:1,scale:1,duration:0.3},1.05)
-          .to('.ds-dot-1',{width:'24px',background:'var(--accent)',duration:0.01},0)
-          .to('.ds-dot-2',{width:'24px',background:'var(--accent)',duration:0.01},0.3)
-          .to('.ds-dot-3',{width:'24px',background:'var(--accent)',duration:0.01},0.68)
-          .to('.ds-dot-4',{width:'24px',background:'var(--accent)',duration:0.01},1.05)
-      }
-      gsap.from('.live-panel',{opacity:0,y:44,duration:1.0,ease:'power3.out',scrollTrigger:{trigger:'.live-panel',start:'top 82%'}})
-      gsap.from('.replay-layout > *',{opacity:0,y:28,stagger:0.15,duration:0.85,ease:'power3.out',scrollTrigger:{trigger:'.replay-layout',start:'top 82%'}})
-      gsap.from('.upload-layout > *',{opacity:0,y:28,stagger:0.15,duration:0.85,ease:'power3.out',scrollTrigger:{trigger:'.upload-layout',start:'top 82%'}})
-      gsap.from('.tech-step',{opacity:0,scale:0.9,y:18,stagger:0.14,duration:0.85,ease:'power3.out',scrollTrigger:{trigger:'.tech-simple',start:'top 82%'}})
-      gsap.from('.r-card',{opacity:0,y:30,rotation:2.5,stagger:0.09,duration:0.85,ease:'power3.out',scrollTrigger:{trigger:'.research-cards',start:'top 82%'}})
-      gsap.from('.stair',{opacity:0,y:32,stagger:0.08,duration:0.75,ease:'power3.out',scrollTrigger:{trigger:'.staircase',start:'top 82%'}})
-      gsap.from('.cta-headline',{opacity:0,y:54,duration:1.1,ease:'power3.out',scrollTrigger:{trigger:'.cta-section',start:'top 80%'}})
-      gsap.from(['.cta-sub','.cta-btn-wrap'],{opacity:0,y:28,stagger:0.15,duration:0.9,ease:'power3.out',scrollTrigger:{trigger:'.cta-section',start:'top 75%'}})
-    }
-    init()
-    return ()=>{
-      lenis?.destroy()
-      cancelAnimationFrame(rafId)
-      if(typeof window!=='undefined'){
-        import('gsap/ScrollTrigger').then(({ScrollTrigger})=>{
-          ScrollTrigger.getAll().forEach((t:any)=>t.kill())
-        }).catch(()=>{})
-      }
-    }
-  },[])
-
-  useEffect(()=>{
-    if(typeof window==='undefined') return
-    const fns:Array<()=>void>=[]
-    const init=async()=>{
-      const {gsap}=await import('gsap')
-      const els=document.querySelectorAll<HTMLElement>('.btn-primary,.nav-cta,.run-btn,.cta-btn')
-      els.forEach(el=>{
-        const onMove=(e:MouseEvent)=>{
-          const r=el.getBoundingClientRect()
-          gsap.to(el,{x:(e.clientX-r.left-r.width/2)*0.22,y:(e.clientY-r.top-r.height/2)*0.22-1,duration:0.35,ease:'power3.out',overwrite:'auto'})
-        }
-        const onLeave=()=>gsap.to(el,{x:0,y:0,duration:0.65,ease:'elastic.out(1,0.5)',overwrite:'auto'})
-        el.addEventListener('mousemove',onMove); el.addEventListener('mouseleave',onLeave)
-        fns.push(()=>{el.removeEventListener('mousemove',onMove);el.removeEventListener('mouseleave',onLeave)})
-      })
-    }
-    init()
-    return ()=>fns.forEach(f=>f())
-  },[])
-
-  useEffect(()=>{
-    if(typeof window==='undefined') return
-    import('gsap').then(({gsap})=>{
-      gsap.from('.uc-english,.uc-hindi',{opacity:0,y:8,duration:0.4,ease:'power3.out'})
-    }).catch(()=>{})
-  },[selectedId])
-
-  const requestCamera=useCallback(async()=>{
-    try{
-      const s1=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}})
-      if(heroVideoRef.current){heroVideoRef.current.srcObject=s1;heroVideoRef.current.play()}
-      const s2=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}})
-      if(liveVideoRef.current){liveVideoRef.current.srcObject=s2;liveVideoRef.current.play()}
-      setCameraGranted(true)
-    }catch{}
-  },[])
-
-  function addReplay(c:Ctx){
-    const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
-    setReplays(r=>[{time:t,gesture:c.gesture,english:c.english,hindi:c.hindi,confidence:c.confidence},...r].slice(0,6))
-  }
-  function toggleRunning(){const next=!isRunning;setIsRunning(next);if(next)addReplay(ctx)}
-  function handleSelect(id:CtxId){setSelectedId(id);if(isRunning)addReplay(contexts.find(c=>c.id===id)??ctx)}
-
-  function handleFile(file?:File){
-    if(!file) return
-    setFileName(file.name);setUploadState('processing');setChipsVisible([])
-    const chips=['Open Palm','Handshake','Point','Fist','Five']
-    chips.forEach((_,i)=>setTimeout(()=>setChipsVisible(v=>[...v,true]),400+i*350))
-    setTimeout(()=>setUploadState('ready'),2300)
-  }
+/* ═══════════════════════════════════════════════════════
+   INTERPRETATION CARD COMPONENT
+═══════════════════════════════════════════════════════ */
+function InterpretationCard({
+  isRunning,
+  result,
+  lang,
+  onLang,
+  pipelineStage,
+}: {
+  isRunning: boolean
+  result: RecognitionResult | null
+  lang: 'english' | 'hindi'
+  onLang: (l: 'english' | 'hindi') => void
+  pipelineStage: number
+}) {
+  const confidence = isRunning && result ? result.confidence : 0
 
   return (
-    <div className="shell">
-      <div className="cursor-dot" aria-hidden="true"/>
-
-      <nav className="nav" aria-label="Main navigation">
-        <a href="#top" className="brand"><Mark/><span>Silent Interpreter</span></a>
-        <div className={`nav-links ${mobileOpen?'nav-links-open':''}`}>
-          <a href="#universe" onClick={()=>setMobileOpen(false)}>Universe</a>
-          <a href="#live" onClick={()=>setMobileOpen(false)}>Live Demo</a>
-          <a href="#technology" onClick={()=>setMobileOpen(false)}>Technology</a>
-          <a href="#research" onClick={()=>setMobileOpen(false)}>Research</a>
-          <a href="#roadmap" onClick={()=>setMobileOpen(false)}>Roadmap</a>
+    <div className="interp-card">
+      <div className="interp-header">
+        <span className="interp-title">Live Interpretation</span>
+        <div className="interp-meta">
+          <Dot color="" />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.05em' }}>
+            SIMULATION
+          </span>
+          <Badge sim>UI DEMO</Badge>
         </div>
-        <a href="#live" className="nav-cta">Try the demo <ArrowRight size={13}/></a>
-        <button className="mobile-toggle" onClick={()=>setMobileOpen(!mobileOpen)} aria-label="Toggle menu">
-          {mobileOpen?<X size={18}/>:<Menu size={18}/>}
-        </button>
-      </nav>
-
-      <section className="hero" id="top" aria-labelledby="hero-h1">
-        <div className="hero-gradient" aria-hidden="true"/>
-        <div className="hero-float-layer" aria-hidden="true">
-          {FLOAT_WORDS.map((fw,i)=>(
-            <span key={i} className="float-word" style={{left:`${fw.x}%`,top:`${fw.y}%`,animationDelay:`${fw.delay}s`}}>
-              {fw.word}
-            </span>
-          ))}
-        </div>
-        <div className="hero-text">
-          <div className="hero-eyebrow">
-            <span className="hero-eyebrow-dot" aria-hidden="true"/>
-            Indian Sign Language · Real-Time Translation · Hackathon 2026
-          </div>
-          <h1 className="hero-h1" id="hero-h1">Communication Should Never Need A Translator.</h1>
-          <div className="hero-orb" aria-hidden="true">
-            <div className="hero-orb-ring hero-orb-ring-2"/>
-            <div className="hero-orb-ring"/>
-            <div className="hero-orb-inner"><Mic size={18} strokeWidth={1.8}/></div>
-          </div>
-          <p className="hero-sub">Silent Interpreter bridges Indian Sign Language and spoken language — in hospitals, restaurants, airports, classrooms, and everywhere in between.</p>
-          <div className="hero-actions">
-            <button className="btn-primary" onClick={requestCamera} aria-label="Activate webcam">
-              <Video size={16}/> Activate camera
-            </button>
-            <a href="#live" className="btn-ghost"><Play size={15} fill="currentColor"/> Try the demo</a>
-          </div>
-          <p className="hero-note"><span className="hero-note-dot" aria-hidden="true"/>Demo simulation · No AI backend connected · All processing is simulated</p>
-          <div className="scroll-cue" aria-hidden="true"><ArrowDown size={14} className="scroll-cue-arrow"/><span>Scroll to begin the story</span></div>
-        </div>
-        <div className="hero-device-col" aria-hidden="true">
-          <div className={`hero-device-wrap ${pinned?'fading':''}`}>
-            <DeviceScreen ctx={ctx} lang={lang} onLang={setLang} isRunning={isRunning} cameraGranted={cameraGranted} videoRef={heroVideoRef}/>
-          </div>
-          <span className="depth-tag depth-tag-tl"><ScanFace size={11}/> context-aware</span>
-          <span className="depth-tag depth-tag-bl"><Sparkles size={11}/> {ctx.label}</span>
-          <div className="hero-device-shadow" aria-hidden="true"/>
-        </div>
-      </section>
-
-      <div className={`device-pinned ${pinned?'show':''}`} aria-label="Pinned device" aria-hidden={!pinned}>
-        <DeviceScreen ctx={ctx} lang={lang} onLang={setLang} isRunning={isRunning} cameraGranted={false} videoRef={{current:null}} mini/>
       </div>
 
-      <section className="problem-section" id="problem" aria-labelledby="problem-h2">
-        <div className="wrap">
-          <div className="problem-inner">
-            <div>
-              <SectionLabel>THE PROBLEM WE ARE SOLVING</SectionLabel>
-              <h2 className="problem-h2 reveal-h" id="problem-h2">One in seventy million.<br/><em>Every single day.</em></h2>
-              <p className="problem-body reveal-p">India has the world's largest deaf and hard-of-hearing community. Most face communication barriers at hospitals, schools, and public spaces — not because of their disability, but because of ours.</p>
-            </div>
-            <div className="stats-grid">
-              <div className="stat-card"><p className="stat-num"><em>70M+</em></p><p className="stat-label">deaf and hard-of-hearing people in India — the world's largest such community</p></div>
-              <div className="stat-card"><p className="stat-num">300<em>+</em></p><p className="stat-label">unique hand shapes in Indian Sign Language</p></div>
-              <div className="stat-card"><p className="stat-num">1<em>in</em>6</p><p className="stat-label">deaf Indians with access to a trained sign language interpreter</p></div>
-            </div>
+      {/* Pipeline */}
+      <ProcessingPipeline activeStage={isRunning ? pipelineStage : -1} />
+
+      <div className="interp-body">
+        {/* Gesture + Confidence */}
+        <div className="gesture-row">
+          <div className="gesture-label-group">
+            <span className="gesture-sublabel">Gesture Detected</span>
+            <span className="gesture-name">
+              {isRunning && result ? `${result.emoji} ${result.gesture}` : '—'}
+            </span>
+          </div>
+          <div className="conf-pill">
+            <span className="conf-pill-label">Confidence</span>
+            <span className="conf-pill-val">{confidence > 0 ? `${confidence}%` : '—'}</span>
           </div>
         </div>
-      </section>
 
-      <section className="universe-section" id="universe" aria-labelledby="universe-h2">
-        <div className="wrap">
-          <div className="universe-top">
-            <div>
-              <SectionLabel>FOUND EVERYWHERE YOU LOOK</SectionLabel>
-              <h2 id="universe-h2" className="reveal-h">Every place is a new<br/><em>conversation.</em></h2>
-            </div>
-            <p className="reveal-p">Hover a location to change the simulated conversation. Silent Interpreter adapts to the context — not just the gesture.</p>
-          </div>
-          <CommunicationUniverse selectedId={selectedId} onSelect={handleSelect} lang={lang}/>
+        {/* Confidence bar */}
+        <div className="conf-bar">
+          <div className="conf-bar-fill" style={{ width: `${confidence}%` }} />
         </div>
-      </section>
 
-      <section className="demo-story" id="story" aria-label="How Silent Interpreter works">
-        <div className="ds-inner">
-          <div className="ds-label">
-            <SectionLabel>THE SILENT MOMENT</SectionLabel>
-            <h2 className="ds-headline">One gesture.<br/><em>One conversation.</em></h2>
-          </div>
-          <div className="ds-stage">
-            <div className="ds-scene ds-scene-1">
-              <div className="ds-visual">
-                <svg className="ds-hand-svg" viewBox="0 0 100 110" aria-hidden="true">
-                  {LM_CONN.map(([a,b],i)=>(
-                    <line key={i} stroke="rgba(43,181,168,0.45)" strokeWidth="1.2" fill="none"
-                      x1={LM_PTS[a][0]} y1={LM_PTS[a][1]} x2={LM_PTS[b][0]} y2={LM_PTS[b][1]}/>
-                  ))}
-                  {LM_PTS.map(([x,y],i)=>(
-                    <circle key={i} cx={x} cy={y} r="2.2" fill="#2BB5A8" style={{filter:'drop-shadow(0 0 5px #2BB5A8)'}}/>
-                  ))}
-                </svg>
-                <div className="ds-waveform">
-                  {Array.from({length:20}).map((_,i)=><i key={i} style={{animationDelay:`${i*0.065}s`}}/>)}
-                </div>
-              </div>
-              <p className="ds-caption">You gesture in Indian Sign Language</p>
-            </div>
-            <div className="ds-scene ds-scene-2">
-              <div className="ds-visual">
-                <div className="ds-ring-wrap">
-                  <svg className="ds-ring" viewBox="0 0 100 100" aria-hidden="true">
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(43,181,168,0.12)" strokeWidth="3"/>
-                    <circle cx="50" cy="50" r="38" fill="none" stroke="#2BB5A8" strokeWidth="3"
-                      strokeDasharray="55 185" strokeLinecap="round" style={{filter:'drop-shadow(0 0 8px #2BB5A8)'}}/>
-                    <circle cx="50" cy="50" r="24" fill="none" stroke="rgba(43,181,168,0.07)" strokeWidth="2"/>
-                    <text x="50" y="56" textAnchor="middle" fill="#2BB5A8" fontSize="11" fontFamily="var(--font-mono)" fontWeight="700">AI</text>
-                  </svg>
-                  <div className="ds-ring-dots">
-                    {['MediaPipe','Landmarks','LSTM','Encoder'].map((label)=>(
-                      <span key={label} className="ds-ring-dot">{label}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="ds-caption">MediaPipe + LSTM analyzes every landmark</p>
-            </div>
-            <div className="ds-scene ds-scene-3">
-              <div className="ds-visual">
-                <div className="ds-translation-wrap">
-                  <div className="ds-translate-from">
-                    <span className="ds-t-label">ISL Gesture</span>
-                    <strong className="ds-t-word">Open Palm</strong>
-                  </div>
-                  <div className="ds-translate-arrow"><ArrowRight size={28}/></div>
-                  <div className="ds-translate-to">
-                    <span className="ds-t-label">English</span>
-                    <strong className="ds-t-word">I need help</strong>
-                  </div>
-                </div>
-              </div>
-              <p className="ds-caption">Translated with 96% confidence</p>
-            </div>
-            <div className="ds-scene ds-scene-4">
-              <div className="ds-visual">
-                <div className="ds-bubble-wrap">
-                  <div className="ds-bubble">
-                    <div className="ds-bubble-lang en">
-                      <span className="ds-bubble-flag">🇬🇧</span>
-                      <span>I need help finding my appointment.</span>
-                    </div>
-                    <div className="ds-bubble-divider"/>
-                    <div className="ds-bubble-lang hi">
-                      <span className="ds-bubble-flag">🇮🇳</span>
-                      <span>मुझे अपनी अपॉइंटमेंट में मदद चाहिए।</span>
-                    </div>
-                  </div>
-                  <div className="ds-bubble-wave">
-                    {Array.from({length:14}).map((_,i)=><i key={i} style={{animationDelay:`${i*0.06}s`}}/>)}
-                  </div>
-                </div>
-              </div>
-              <p className="ds-caption">IndicTrans2 speaks in your language</p>
-            </div>
-          </div>
-          <div className="ds-dots" aria-hidden="true">
-            <span className="ds-dot ds-dot-1"/>
-            <span className="ds-dot ds-dot-2"/>
-            <span className="ds-dot ds-dot-3"/>
-            <span className="ds-dot ds-dot-4"/>
-          </div>
-        </div>
-      </section>
-
-      <section className="live-section" id="live" aria-labelledby="live-h2">
-        <div className="wrap">
-          <div className="live-head">
-            <div>
-              <SectionLabel>A MOMENT YOU CAN TRY</SectionLabel>
-              <h2 id="live-h2" className="reveal-h">The live mode <em>within reach.</em></h2>
-              <p className="reveal-p">Start a local simulation to see gesture recognition, language output, and speech move together.</p>
-            </div>
-            <DemoBadge>Demo Simulation</DemoBadge>
-          </div>
-          <div className="live-panel">
-            <div className="cam-pane">
-              <div className="cam-pane-top">
-                <span style={{display:'flex',alignItems:'center',gap:7}}>
-                  <span className={`sig-dot ${isRunning?'on':''}`}/>
-                  {isRunning?'gesture recognition active':'camera simulation ready'}
-                </span>
-                <span>{isRunning?'00:08':'00:00'}</span>
-              </div>
-              <div className="live-stage">
-                {cameraGranted && <video ref={liveVideoRef} autoPlay muted playsInline aria-hidden="true"/>}
-                <div className="live-grid" aria-hidden="true"/>
-                <div className="live-vignette" aria-hidden="true"/>
-                {!cameraGranted && (
-                  <div className="live-signer" aria-hidden="true">
-                    <div className="signer" style={{transform:'scale(1.3)'}}>
-                      <i className="sh"/><i className="sb"/><i className="sa sa-l"/><i className="sa sa-r"/><i className="shand"/>
-                    </div>
-                  </div>
-                )}
-                <svg className="live-lm-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                  {isRunning&&LM_CONN.map(([a,b],i)=>(
-                    <line key={i} stroke="rgba(43,181,168,.35)" strokeWidth=".8"
-                      x1={LM_PTS[a][0]} y1={LM_PTS[a][1]} x2={LM_PTS[b][0]} y2={LM_PTS[b][1]}/>
-                  ))}
-                  {isRunning&&LM_PTS.map(([x,y],i)=>(
-                    <circle key={i} cx={x} cy={y} r="1.4" fill="#2BB5A8" style={{filter:'drop-shadow(0 0 3px #2BB5A8)'}}/>
-                  ))}
-                </svg>
-                {isRunning&&<div className="live-detect-chip"><ScanFace size={10}/> {ctx.gesture}</div>}
-                <span className="live-foot">No webcam required · visual simulation</span>
-              </div>
-              <div className="cam-controls">
-                <button className={`run-btn ${isRunning?'stop':''}`} onClick={toggleRunning} aria-pressed={isRunning}>
-                  {isRunning?<><Square size={14} fill="currentColor"/> Stop</>:<><Radio size={14}/> Start translation</>}
-                </button>
-                <div className="lang-toggle" role="group" aria-label="Output language">
-                  <button className={lang==='english'?'on':''} onClick={()=>setLang('english')}>EN</button>
-                  <button className={lang==='hindi'?'on':''} onClick={()=>setLang('hindi')}>HI</button>
-                </div>
-              </div>
-            </div>
-            <div className="out-pane">
-              <div className="out-top">
-                <span>SIMULATED TRANSCRIPT</span>
-                <span className="out-conf">{isRunning?`${confidence}% confidence`:'awaiting gesture'}</span>
-              </div>
-              <div className="out-content" aria-live="polite">
-                {isRunning?(<>
-                  <div className="out-gesture-chip"><span>{ctx.emoji}</span> {ctx.gesture}</div>
-                  <p className="out-en">{lang==='english'?ctx.english:ctx.hindi}</p>
-                  {lang==='english'&&<p className="out-hi">{ctx.hindi}</p>}
-                </>):(
-                  <p className="out-placeholder">Start the simulation to see a conversation appear here.</p>
-                )}
-              </div>
-              <div className="out-meter"><div className="out-meter-fill" style={{width:`${confidence}%`}}/></div>
-              <div className={`out-wave ${speaking?'active':''}`} aria-hidden="true">
-                {waveHeights.map((h,i)=><i key={i} style={{height:h*(speaking?1:.28),animationDelay:`${i*.04}s`}}/>)}
-              </div>
-              <div className="out-actions">
-                <button className={`speak-btn ${speaking?'on':''}`}
-                  onClick={()=>setSpeaking(!speaking)} disabled={!isRunning}
-                  aria-label={speaking?'Stop speech':'Play speech'}>
-                  {speaking?<Pause size={13}/>:<Volume2 size={13}/>}
-                  {speaking?'Stop speech':'Play speech'}
-                </button>
-                <span className="out-note">{speaking?'Playing simulated speech…':'Web Speech API · future connection'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="replay-section" id="replay" aria-labelledby="replay-h2">
-        <div className="wrap">
-          <div className="replay-layout">
-            <div className="replay-copy">
-              <SectionLabel>CONVERSATION REPLAY</SectionLabel>
-              <h2 id="replay-h2" className="reveal-h">Nothing meaningful has to <em>disappear.</em></h2>
-              <p className="reveal-p">Every context you explore stays as a local memory.</p>
-            </div>
-            <div>
-              <div className="replay-list">
-                {replays.length===0&&(
-                  <div className="replay-empty">
-                    <Waves size={26} style={{color:'var(--accent)'}}/>
-                    <p>Start the live demo above to create your first replay.</p>
-                    <DemoBadge/>
-                  </div>
-                )}
-                {replays.map((r,i)=>(
-                  <article className="replay-item" key={`${r.time}-${i}`}>
-                    <span className="replay-t">{r.time}</span>
-                    <div className="replay-stem"><span className="replay-node-dot"/><span/></div>
-                    <div className="replay-info">
-                      <div className="replay-meta-row"><strong>{r.gesture}</strong><span className="replay-pct">{r.confidence}%</span></div>
-                      <p>{lang==='english'?r.english:r.hindi}</p>
-                      <small>{r.hindi}</small>
-                    </div>
-                    <button className={`replay-btn ${replayPlaying===i?'active':''}`}
-                      onClick={()=>{setReplayPlaying(i);setTimeout(()=>setReplayPlaying(null),1400)}}
-                      aria-label={`Replay ${r.gesture}`}>
-                      {replayPlaying===i?<Pause size={13}/>:<Play size={13} fill="currentColor"/>}
-                    </button>
-                  </article>
-                ))}
-              </div>
-              <div className="replay-foot"><DemoBadge/><span>Replay controls change local UI state only.</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="upload-section" id="upload" aria-labelledby="upload-h2">
-        <div className="wrap">
-          <div className="upload-layout">
-            <div className="upload-copy">
-              <SectionLabel>CONTINUE A CONVERSATION</SectionLabel>
-              <h2 id="upload-h2" className="reveal-h">Let a video become a <em>timeline.</em></h2>
-              <p className="reveal-p">Drop a clip to explore the shape of a future upload flow.</p>
-              <ul className="upload-list" aria-label="Upload features">
-                <li><Check size={13}/> Local-only processing</li>
-                <li><Check size={13}/> Confidence and waveform preview</li>
-                <li><Check size={13}/> Transcript download preview</li>
-              </ul>
-            </div>
-            <div className="drop-zone" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();handleFile(e.dataTransfer.files[0])}} aria-label="Video file drop area">
-              <input ref={fileRef} type="file" accept="video/*" hidden onChange={e=>handleFile(e.target.files?.[0])}/>
-              {uploadState==='idle'&&(
-                <button className="drop-idle" onClick={()=>fileRef.current?.click()}>
-                  <div className="drop-icon" aria-hidden="true"><CloudUpload size={26}/></div>
-                  <strong>Drop a video here</strong>
-                  <span>or browse for a local clip</span>
-                  <DemoBadge/>
-                </button>
-              )}
-              {uploadState==='processing'&&(
-                <div className="drop-processing" role="status" aria-live="polite">
-                  <Sparkles size={26} style={{color:'var(--accent)'}}/>
-                  <strong>Building a simulated timeline…</strong>
-                  <span>{fileName}</span>
-                  <div className="upload-progress"><div className="upload-progress-fill"/></div>
-                  <div className="upload-steps">
-                    <span className="ustep done"><Check size={10}/> gesture chips</span>
-                    <span className="ustep">transcript</span>
-                    <span className="ustep">speech preview</span>
-                  </div>
-                </div>
-              )}
-              {uploadState==='ready'&&(
-                <div className="drop-ready" aria-live="polite">
-                  <div className="ready-header">
-                    <span className="ready-check"><Check size={15}/></span>
-                    <div><strong>Timeline ready</strong><span>Demo Simulation · local result</span></div>
-                    <button onClick={()=>{setUploadState('idle');setFileName('');setChipsVisible([])}} aria-label="Reset upload"><X size={15}/></button>
-                  </div>
-                  <div className="gesture-chips-row" aria-label="Detected gestures">
-                    {['👋 Open Palm','🤝 Handshake','☝️ Point','✊ Fist','🖐️ Five'].map((chip,i)=>(
-                      <span key={chip} className={`gchip ${chipsVisible[i]?'show':''}`} style={{transitionDelay:`${i*.07}s`}}>{chip}</span>
-                    ))}
-                  </div>
-                  <div className="transcript-box">
-                    <small>RECOGNIZED TEXT</small>
-                    <p>{ctx.english}</p>
-                    <div className="upload-wave" aria-hidden="true">
-                      {waveHeights.slice(0,20).map((h,i)=><i key={i} style={{height:h*.5,animationDelay:`${i*.05}s`}}/>)}
-                    </div>
-                  </div>
-                  <button className="dl-btn" disabled aria-label="Download transcript (disabled)"><Upload size={13}/> Download transcript preview</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="tech-section" id="technology" aria-labelledby="tech-h2">
-        <div className="wrap">
-          <div className="tech-inner">
-            <div className="tech-copy">
-              <SectionLabel>HOW IT WORKS</SectionLabel>
-              <h2 id="tech-h2" className="reveal-h">Technology is the proof, <em>not the story.</em></h2>
-              <p className="reveal-p">Four simple steps — from a gesture you make to a word someone hears.</p>
-              <button className={`tech-expand-btn ${techExpanded?'open':''}`} onClick={()=>setTechExpanded(!techExpanded)} aria-expanded={techExpanded} aria-controls="tech-pipeline">
-                {techExpanded?'Hide technical pipeline':'See technical pipeline'}<ChevronDown size={14}/>
+        {/* Language toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="word-stream-label">Generated Language</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }} role="group" aria-label="Output language">
+            {(['english', 'hindi'] as const).map(l => (
+              <button
+                key={l}
+                onClick={() => onLang(l)}
+                aria-pressed={lang === l}
+                className={`lang-btn ${lang === l ? 'active' : ''}`}
+              >
+                {l === 'english' ? 'EN' : 'HI'}
               </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Word stream */}
+        <WordStream isRunning={isRunning} result={result} lang={lang} />
+
+        {/* Speech controls */}
+        <SpeechControls
+          text={isRunning && result ? (lang === 'english' ? result.english : result.hindi) : ''}
+          disabled={!isRunning || !result}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   HERO SECTION
+═══════════════════════════════════════════════════════ */
+function HeroSection({
+  result,
+  isRunning,
+  lang,
+  onLang,
+  camState,
+  setCamState,
+  onCamera,
+  videoRef,
+  streamRef,
+  onStartTranslation,
+  pipelineStage,
+  selectedGesture,
+  onGestureChange,
+  camError,
+}: {
+  result: RecognitionResult | null
+  isRunning: boolean
+  lang: 'english' | 'hindi'
+  onLang: (l: 'english' | 'hindi') => void
+  camState: CamState
+  setCamState: (s: CamState) => void
+  onCamera: () => Promise<void>
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  streamRef: React.RefObject<MediaStream | null>
+  onStartTranslation: () => void
+  pipelineStage: number
+  selectedGesture: string
+  onGestureChange: (id: string) => void
+  camError: CamError
+}) {
+  const [elapsed, setElapsed] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (camState === 'recording') {
+      setElapsed(0)
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [camState])
+
+  return (
+    <section className="hero" id="top" aria-labelledby="hero-h1">
+      <div className="hero-inner">
+        {/* Left: Copy */}
+        <div className="hero-copy">
+          {/* Eyebrow */}
+          <div className="hero-eyebrow" id="hero-eyebrow">
+            <span className="hero-eyebrow-dot" aria-hidden="true" />
+            <span>Real-time Sign Language Interpretation</span>
+          </div>
+
+          {/* Headline — two lines, individually animated */}
+          <h1 className="hero-headline" id="hero-h1" aria-label="When hands speak, technology should listen.">
+            <span className="hero-line" id="hero-line-1">
+              When hands <em>speak,</em>
+            </span>
+            <span className="hero-line" id="hero-line-2">
+              technology should listen.
+            </span>
+          </h1>
+
+          <p className="hero-sub" id="hero-sub">
+            Silent Interpreter transforms sign language into meaningful text and spoken language,
+            helping conversations move naturally between people.
+          </p>
+
+          <div className="hero-actions" id="hero-actions">
+            <button
+              className="btn btn-hero btn-primary"
+              onClick={onStartTranslation}
+              aria-label="Start live translation demo"
+              id="hero-cta-primary"
+            >
+              <Radio size={16} />
+              Start Live Translation
+            </button>
+            <a href="#upload" className="btn btn-hero btn-ghost" aria-label="Upload a video">
+              <Video size={15} />
+              Upload a Video
+            </a>
+          </div>
+
+          {/* Status */}
+          <div className="hero-status" id="hero-status">
+            <div style={{ paddingTop: 2 }}>
+              <Dot color={camState === 'idle' ? '' : camState === 'recording' ? 'record' : 'green'} pulse={camState === 'active'} />
             </div>
-            <div>
-              <div className="tech-simple" aria-label="Simplified technology steps">
-                {PIPELINE_SIMPLE.map(step=>(
-                  <div key={step.step} className={`tech-step ${step.highlight?'highlight':''}`}>
-                    <span className="tech-step-num">{step.step}</span>
-                    <div className="tech-step-body"><strong>{step.label}</strong><span>{step.sub}</span></div>
+            <div className="hero-status-text">
+              <strong>INTERPRETER READY</strong>
+              UI Demo · Model connection pending
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Product */}
+        <div className="hero-product" id="hero-product">
+          <CameraPreview
+            isRunning={isRunning}
+            result={result}
+            camState={camState}
+            setCamState={setCamState}
+            onCamera={onCamera}
+            videoRef={videoRef}
+            streamRef={streamRef}
+            elapsed={elapsed}
+            camError={camError}
+          />
+          <InterpretationCard
+            isRunning={isRunning}
+            result={result}
+            lang={lang}
+            onLang={onLang}
+            pipelineStage={pipelineStage}
+          />
+          <DemoGestureSelector selected={selectedGesture} onChange={onGestureChange} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   BELOW-FOLD SECTIONS
+═══════════════════════════════════════════════════════ */
+
+function ProblemSection() {
+  return (
+    <section id="problem" aria-labelledby="problem-h2">
+      <div className="wrap">
+        <div className="problem-layout">
+          <div>
+            <SectionLabel>THE PROBLEM WE ARE SOLVING</SectionLabel>
+            <h2 className="problem-h2 reveal" id="problem-h2">
+              One in seventy million.<br />
+              <em>Every single day.</em>
+            </h2>
+            <p className="problem-body reveal reveal-delay-1">
+              India has the world&apos;s largest deaf and hard-of-hearing community.
+              Most face communication barriers at hospitals, schools, and public
+              spaces — not because of their disability, but because of ours.
+            </p>
+          </div>
+          <div className="stats-grid reveal reveal-delay-2">
+            <div className="stat-card">
+              <p className="stat-num"><em>70M+</em></p>
+              <p className="stat-label">deaf and hard-of-hearing people in India — the world's largest such community</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-num">300<em>+</em></p>
+              <p className="stat-label">unique hand shapes in Indian Sign Language</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-num">1<em>in</em>6</p>
+              <p className="stat-label">deaf Indians with access to a trained sign language interpreter</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── MISSION / STATEMENT SECTION ──────────────────── */
+function MissionSection() {
+  return (
+    <section id="mission" className="statement-section" aria-labelledby="mission-h2">
+      <div className="wrap">
+        <span className="section-label reveal" style={{ textAlign: 'center', display: 'block' }}>THE HUMAN MISSION</span>
+        <div className="statement-lines" aria-label="Communication should never depend on who can speak.">
+          <span className="statement-line reveal" id="mission-h2">Communication</span>
+          <span className="statement-line reveal reveal-delay-1" style={{ color: 'var(--accent)' }}>should never</span>
+          <span className="statement-line reveal reveal-delay-2">depend on who</span>
+          <span className="statement-line reveal reveal-delay-3">can speak.</span>
+        </div>
+        <p className="statement-sub reveal reveal-delay-4">
+          Silent Interpreter is built to make communication more accessible, natural and immediate —
+          so that language is never a barrier between people.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function HowItWorksSection({
+  activeDataset,
+  setActiveDataset,
+  techExpanded,
+  setTechExpanded,
+}: {
+  activeDataset: string | null
+  setActiveDataset: (s: string | null) => void
+  techExpanded: boolean
+  setTechExpanded: (b: boolean) => void
+}) {
+  const STEPS = [
+    { num: '01', label: 'Capture',     sub: 'Your camera captures the signing in real time.',           highlight: false },
+    { num: '02', label: 'Understand',  sub: 'MediaPipe extracts 21 hand landmarks per frame.',          highlight: false },
+    { num: '03', label: 'Interpret',   sub: 'LSTM network maps the gesture sequence to meaning.',       highlight: true  },
+    { num: '04', label: 'Generate',    sub: 'Meaning becomes readable English and Hindi text.',         highlight: false },
+    { num: '05', label: 'Speak',       sub: 'IndicTrans2 + Web Speech API delivers the spoken word.',  highlight: false },
+  ]
+
+  return (
+    <section id="how-it-works" aria-labelledby="hiw-h2">
+      <div className="wrap">
+        <div className="hiw-layout">
+          <div>
+            <SectionLabel>HOW IT WORKS</SectionLabel>
+            <div className="section-head">
+              <h2 id="hiw-h2" className="reveal">
+                Technology is the proof,<br /><em>not the story.</em>
+              </h2>
+              <p className="reveal reveal-delay-1">
+                Five stages from a gesture you make to a word someone hears.
+              </p>
+            </div>
+            <button
+              className={`tech-expand-btn ${techExpanded ? 'open' : ''}`}
+              onClick={() => setTechExpanded(!techExpanded)}
+              aria-expanded={techExpanded}
+              aria-controls="tech-pipeline"
+            >
+              {techExpanded ? 'Hide technical pipeline' : 'See technical pipeline'}
+              <ChevronDown size={14} />
+            </button>
+            <div
+              id="tech-pipeline"
+              className={`tech-full-panel reveal reveal-delay-2 ${techExpanded ? 'open' : ''}`}
+              aria-hidden={!techExpanded}
+            >
+              <div className="full-pipeline">
+                {PIPELINE_FULL.map(n => (
+                  <div className="full-pipe-item" key={n.label}>
+                    <span className={`full-pipe-item-dot ${n.cat}`} />
+                    <span className="full-pipe-item-label">{n.label}</span>
+                    <span className="full-pipe-item-sub">{n.sub}</span>
                   </div>
                 ))}
               </div>
-              <div id="tech-pipeline" className={`tech-full ${techExpanded?'open':''}`} aria-hidden={!techExpanded}>
-                <div className="pipeline-row">
-                  {PIPELINE_FULL.slice(0,5).map(n=>(
-                    <div className="pipe-node" key={n.label}><div className="pipe-dot"/><span className="pipe-label">{n.label}</span><span className="pipe-sub">{n.sub}</span></div>
-                  ))}
-                </div>
-                <div className="pipeline-row" style={{marginTop:8}}>
-                  {PIPELINE_FULL.slice(5).map(n=>(
-                    <div className="pipe-node" key={n.label}><div className="pipe-dot"/><span className="pipe-label">{n.label}</span><span className="pipe-sub">{n.sub}</span></div>
-                  ))}
-                </div>
-                <div style={{paddingTop:16,display:'flex',alignItems:'center',gap:10}}>
-                  <DemoBadge/>
-                  <span style={{color:'var(--muted)',fontFamily:'var(--font-mono)',fontSize:10}}>Future inference pipeline — simulated visualization only</span>
-                </div>
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--line)', display: 'flex', gap: 8 }}>
+                <Badge sim>Future inference pipeline</Badge>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--muted)', letterSpacing: '.03em' }}>Simulated visualization only</span>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="research-section" id="research" aria-labelledby="research-h2">
-        <div className="wrap">
-          <div className="research-head">
-            <div>
-              <SectionLabel>TRAINED ON INDIAN SIGN LANGUAGE RESEARCH</SectionLabel>
-              <h2 id="research-h2" className="reveal-h">Open knowledge, <em>carefully held.</em></h2>
-            </div>
-            <p className="reveal-p">These datasets represent the research roots that teach a future interpreter the depth of Indian Sign Language.</p>
-          </div>
-          <div className="research-cards">
-            {DATASETS.map(ds=>{
-              const open=activeDataset===ds.name
-              return (
-                <article className={`r-card ${open?'open':''}`} key={ds.name}>
-                  <button className="r-trigger" onClick={()=>setActiveDataset(open?null:ds.name)} aria-expanded={open}>
-                    <span className="r-tab">{ds.mark}</span>
-                    <span><strong>{ds.name}</strong><small>{ds.meta}</small></span>
-                    <ChevronDown size={14}/>
-                  </button>
-                  <div className="r-body" aria-hidden={!open}>
-                    <div className="r-inner"><p>{ds.purpose}</p><span>{ds.role}</span><div className="r-bars"><i/><i/><i/><i/><i/></div></div>
+          <div>
+            <div className="how-pipeline-steps reveal reveal-delay-1">
+              {STEPS.map(s => (
+                <div key={s.num} className="how-step">
+                  <span className="how-step-num">{s.num}</span>
+                  <div className="how-step-body">
+                    <span className="how-step-title" style={{ color: s.highlight ? 'var(--accent)' : undefined }}>{s.label}</span>
+                    <span className="how-step-desc">{s.sub}</span>
                   </div>
-                </article>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="roadmap-section" id="roadmap" aria-labelledby="roadmap-h2">
-        <div className="wrap">
-          <div className="roadmap-layout">
-            <div className="roadmap-copy">
-              <SectionLabel>THE ROAD AHEAD</SectionLabel>
-              <h2 id="roadmap-h2" className="reveal-h">From a first step to <em>universal communication.</em></h2>
-              <p className="reveal-p">A staircase, not a promise. Each level is a direction for future research.</p>
-              <div style={{marginTop:22}}><DemoBadge>Roadmap Simulation</DemoBadge></div>
-            </div>
-            <div className="staircase" aria-label="Silent Interpreter roadmap staircase">
-              {ROADMAP.map((item,i)=>(
-                <div key={item} className={`stair ${i===0?'current':''}`} style={{height:`${82+i*28}px`}}>
-                  <span>{String(i+1).padStart(2,'0')}</span>
-                  <strong>{item}</strong>
-                  {i===0&&<small>now</small>}
                 </div>
               ))}
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  )
+}
 
-      <section className="cta-section" aria-labelledby="cta-h2">
-        <div className="cta-bg-gradient" aria-hidden="true"/>
-        <div className="wrap cta-wrap">
-          <SectionLabel>JOIN THE CONVERSATION</SectionLabel>
-          <h2 className="cta-headline" id="cta-h2">Every person deserves<br/>to be <em>understood.</em></h2>
-          <p className="cta-sub">Silent Interpreter is built for the moments when being heard matters most. A future where language is never a barrier.</p>
-          <div className="cta-btn-wrap">
-            <button className="cta-btn btn-primary" onClick={requestCamera}><Video size={16}/> Experience the demo</button>
-            <a href="#live" className="btn-ghost"><Play size={15} fill="currentColor"/> See how it works</a>
-            <div className="cta-glow" aria-hidden="true"/>
+function ResearchSection({
+  activeDataset,
+  setActiveDataset,
+}: {
+  activeDataset: string | null
+  setActiveDataset: (s: string | null) => void
+}) {
+  return (
+    <section id="research" aria-labelledby="research-h2">
+      <div className="wrap">
+        <div className="section-head">
+          <SectionLabel>TRAINED ON ISL RESEARCH</SectionLabel>
+          <h2 id="research-h2" className="reveal">Open knowledge, <em>carefully held.</em></h2>
+          <p className="reveal reveal-delay-1">
+            These datasets form the research foundation that will teach a future interpreter the depth of Indian Sign Language.
+          </p>
+        </div>
+        <div className="research-cards reveal reveal-delay-2">
+          {DATASETS.map(ds => {
+            const open = activeDataset === ds.name
+            return (
+              <article className={`r-card ${open ? 'open' : ''}`} key={ds.name}>
+                <button
+                  className="r-trigger"
+                  onClick={() => setActiveDataset(open ? null : ds.name)}
+                  aria-expanded={open}
+                  aria-label={`${open ? 'Collapse' : 'Expand'} ${ds.name} dataset`}
+                >
+                  <span className="r-tab">{ds.mark}</span>
+                  <span className="r-trigger-text">
+                    <strong>{ds.name}</strong>
+                    <small>{ds.meta}</small>
+                  </span>
+                  <ChevronDown size={14} />
+                </button>
+                <div className="r-body" aria-hidden={!open}>
+                  <div className="r-inner">
+                    <p>{ds.purpose}</p>
+                    <span>{ds.role}</span>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function RoadmapSection() {
+  return (
+    <section id="roadmap" aria-labelledby="roadmap-h2">
+      <div className="wrap">
+        <div className="roadmap-layout">
+          <div>
+            <SectionLabel>THE ROAD AHEAD</SectionLabel>
+            <div className="section-head">
+              <h2 id="roadmap-h2" className="reveal">
+                From a first step to<br /><em>universal communication.</em>
+              </h2>
+              <p className="reveal reveal-delay-1">
+                A staircase, not a promise. Each level is a direction for future research.
+              </p>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <Badge sim>Roadmap Simulation</Badge>
+            </div>
+          </div>
+          <div className="roadmap-steps reveal reveal-delay-1">
+            {ROADMAP.map((item, i) => (
+              <div key={item.label} className={`roadmap-step ${item.active ? 'active' : ''}`}>
+                <span className="roadmap-step-num">{String(i + 1).padStart(2, '0')}</span>
+                <span className="roadmap-step-text">{item.label}</span>
+                {item.active && <span className="roadmap-step-badge">NOW</span>}
+              </div>
+            ))}
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  )
+}
+
+function ReplaySection({
+  replays,
+  lang,
+  replayPlaying,
+  setReplayPlaying,
+}: {
+  replays: Array<{ time: string; gesture: string; english: string; hindi: string; confidence: number; emoji: string }>
+  lang: 'english' | 'hindi'
+  replayPlaying: number | null
+  setReplayPlaying: (i: number | null) => void
+}) {
+  return (
+    <section id="replay" aria-labelledby="replay-h2">
+      <div className="wrap">
+        <div className="replay-layout">
+          <div>
+            <SectionLabel>CONVERSATION REPLAY</SectionLabel>
+            <div className="section-head">
+              <h2 id="replay-h2" className="reveal">
+                Nothing meaningful has to<br /><em>disappear.</em>
+              </h2>
+              <p className="reveal reveal-delay-1">
+                Every gesture you simulate stays as a local session memory.
+              </p>
+            </div>
+          </div>
+          <div className="replay-list reveal reveal-delay-2">
+            {replays.length === 0 ? (
+              <div className="replay-empty">
+                <Waves size={24} style={{ color: 'var(--accent)' }} />
+                <p>Start the live demo to create your first replay.</p>
+                <Badge sim>Demo Simulation</Badge>
+              </div>
+            ) : replays.map((r, i) => (
+              <div className="replay-item" key={`${r.time}-${i}`}>
+                <span className="replay-time">{r.time}</span>
+                <div className="replay-info">
+                  <strong>{r.emoji} {r.gesture}</strong>
+                  <p>{lang === 'english' ? r.english : r.hindi}</p>
+                </div>
+                <span className="replay-pct">{r.confidence}%</span>
+                <button
+                  className="btn btn-icon"
+                  style={{ marginLeft: 4 }}
+                  onClick={() => { setReplayPlaying(i); setTimeout(() => setReplayPlaying(null), 1400) }}
+                  aria-label={`Replay ${r.gesture}`}
+                >
+                  {replayPlaying === i ? <Pause size={12} /> : <Play size={12} fill="currentColor" />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function UploadSection({
+  ctx,
+  uploadState,
+  setUploadState,
+  fileName,
+  setFileName,
+  chipsVisible,
+  setChipsVisible,
+  waveHeights,
+}: {
+  ctx: RecognitionResult
+  uploadState: 'idle' | 'processing' | 'ready'
+  setUploadState: (s: 'idle' | 'processing' | 'ready') => void
+  fileName: string
+  setFileName: (s: string) => void
+  chipsVisible: boolean[]
+  setChipsVisible: (v: boolean[] | ((prev: boolean[]) => boolean[])) => void
+  waveHeights: number[]
+}) {
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handleFile(file?: File) {
+    if (!file) return
+    setFileName(file.name)
+    setUploadState('processing')
+    setChipsVisible([])
+    const chips = ['Open Palm', 'Handshake', 'Point', 'Fist', 'Five']
+    chips.forEach((_, i) => setTimeout(() => setChipsVisible(v => [...v, true]), 400 + i * 350))
+    setTimeout(() => setUploadState('ready'), 2400)
+  }
+
+  return (
+    <section id="upload" aria-labelledby="upload-h2">
+      <div className="wrap">
+        <div className="upload-layout">
+          <div>
+            <SectionLabel>CONTINUE A CONVERSATION</SectionLabel>
+            <div className="section-head">
+              <h2 id="upload-h2" className="reveal">Let a video become a <em>timeline.</em></h2>
+              <p className="reveal reveal-delay-1">Drop a local clip to explore the shape of a future upload flow.</p>
+            </div>
+            <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {['Local-only processing', 'Confidence and waveform preview', 'Transcript download preview'].map(item => (
+                <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, color: 'var(--muted)' }}>
+                  <Check size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} /> {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div
+            className="drop-zone reveal reveal-delay-2"
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
+            aria-label="Video file drop area"
+          >
+            <input ref={fileRef} type="file" accept="video/*" hidden onChange={e => handleFile(e.target.files?.[0])} />
+            {uploadState === 'idle' && (
+              <button className="drop-idle" onClick={() => fileRef.current?.click()}>
+                <div style={{ width: 48, height: 48, border: '1px dashed var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                  <CloudUpload size={24} />
+                </div>
+                <strong>Drop a video here</strong>
+                <span>or browse for a local clip</span>
+                <Badge sim>UI Demo</Badge>
+              </button>
+            )}
+            {uploadState === 'processing' && (
+              <div className="drop-processing" role="status" aria-live="polite">
+                <Sparkles size={24} style={{ color: 'var(--accent)' }} />
+                <strong style={{ fontSize: 15, color: 'var(--text)' }}>Building simulated timeline…</strong>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{fileName}</span>
+                <div className="upload-progress"><div className="upload-progress-fill" /></div>
+              </div>
+            )}
+            {uploadState === 'ready' && (
+              <div className="drop-ready" aria-live="polite">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Check size={13} color="#fff" />
+                  </span>
+                  <strong style={{ fontSize: 14, color: 'var(--text)' }}>Timeline ready</strong>
+                  <button onClick={() => { setUploadState('idle'); setFileName(''); setChipsVisible([]) }} aria-label="Reset upload" style={{ marginLeft: 'auto', color: 'var(--muted)', cursor: 'pointer', background: 'none', border: 'none', display: 'flex' }}>
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="gesture-chips-row">
+                  {['👋 Open Palm', '🤝 Handshake', '☝️ Point', '✊ Fist', '🖐️ Five'].map((chip, i) => (
+                    <span key={chip} className={`gchip ${chipsVisible[i] ? 'show' : ''}`} style={{ transitionDelay: `${i * .07}s` }}>{chip}</span>
+                  ))}
+                </div>
+                <div className="transcript-box">
+                  <small>RECOGNIZED TEXT</small>
+                  <p style={{ fontSize: 14, color: 'var(--text)' }}>{ctx.english}</p>
+                </div>
+                <button className="btn btn-sm btn-ghost" disabled aria-label="Download transcript (disabled)">
+                  <Upload size={12} /> Download transcript preview
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CtaSection({ onCamera }: { onCamera: () => void }) {
+  return (
+    <section className="cta-section" aria-labelledby="cta-h2">
+      <div className="wrap" style={{ textAlign: 'center' }}>
+        <SectionLabel>LET COMMUNICATION MOVE FREELY</SectionLabel>
+        <div className="cta-headline-wrap" aria-label="Every person deserves to be understood.">
+          <span className="cta-line" id="cta-h2">Every person</span>
+          <span className="cta-line">deserves</span>
+          <span className="cta-line">to be <em>understood.</em></span>
+        </div>
+        <p className="cta-sub">
+          Silent Interpreter is built for the moments when being heard matters most.
+          A future where language is never a barrier.
+        </p>
+        <div className="cta-actions">
+          <button className="btn btn-hero btn-primary" onClick={onCamera} aria-label="Experience the demo">
+            <Video size={16} /> Start Live Translation
+          </button>
+          <a href="#upload" className="btn btn-hero btn-ghost">
+            <Play size={15} fill="currentColor" /> Upload a Video
+          </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════ */
+function Navigation({
+  mobileOpen,
+  setMobileOpen,
+  onStart,
+}: {
+  mobileOpen: boolean
+  setMobileOpen: (b: boolean) => void
+  onStart: () => void
+}) {
+  return (
+    <nav className="nav" aria-label="Main navigation">
+      <a href="#top" className="nav-brand" aria-label="Silent Interpreter home">
+        <NavMark />
+        Silent Interpreter
+      </a>
+      <div className={`nav-links ${mobileOpen ? 'open' : ''}`}>
+        <a href="#problem" onClick={() => setMobileOpen(false)}>Product</a>
+        <a href="#how-it-works" onClick={() => setMobileOpen(false)}>How It Works</a>
+        <a href="#research" onClick={() => setMobileOpen(false)}>Research</a>
+        <a href="#roadmap" onClick={() => setMobileOpen(false)}>About</a>
+        <a href="#top" className="nav-cta" onClick={() => { setMobileOpen(false); onStart() }}>
+          Start Translation <ArrowRight size={13} />
+        </a>
+      </div>
+      <div className="nav-right">
+        <button className="nav-cta" onClick={onStart} aria-label="Start translation">
+          Start Translation <ArrowRight size={13} />
+        </button>
+        <button
+          className="nav-mobile-btn"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileOpen}
+        >
+          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      </div>
+    </nav>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   ROOT PAGE COMPONENT
+═══════════════════════════════════════════════════════ */
+export default function Page() {
+  const [selectedGesture, setSelectedGesture] = useState('open-palm')
+  const [isRunning, setIsRunning] = useState(false)
+  const [lang, setLang] = useState<'english' | 'hindi'>('english')
+  const [camState, setCamState] = useState<CamState>('idle')
+  const [camError, setCamError] = useState<CamError>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [activeDataset, setActiveDataset] = useState<string | null>(null)
+  const [techExpanded, setTechExpanded] = useState(false)
+  const [uploadState, setUploadState] = useState<'idle' | 'processing' | 'ready'>('idle')
+  const [fileName, setFileName] = useState('')
+  const [chipsVisible, setChipsVisible] = useState<boolean[]>([])
+  const [replays, setReplays] = useState<Array<{ time: string; gesture: string; english: string; hindi: string; confidence: number; emoji: string }>>([])
+  const [replayPlaying, setReplayPlaying] = useState<number | null>(null)
+  const [pipelineStage, setPipelineStage] = useState(-1)
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const pipeTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  const result = useMemo(() => simulateRecognition(selectedGesture), [selectedGesture])
+  const waveHeights = useMemo(() => Array.from({ length: 20 }, (_, i) => 8 + ((i * 13) % 28)), [])
+
+  // ─── Scroll-reveal via IntersectionObserver ───────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const els = document.querySelectorAll<HTMLElement>('.reveal')
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.1 }
+    )
+    els.forEach(el => observer.observe(el))
+    return () => observer.disconnect()
+  }, [])
+
+  // ─── GSAP Cinematic Entrance ──────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const init = async () => {
+      const { gsap } = await import('gsap')
+      const { ScrollTrigger } = await import('gsap/ScrollTrigger')
+      gsap.registerPlugin(ScrollTrigger)
+
+      // Respect prefers-reduced-motion
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (prefersReduced) {
+        // Just make everything visible immediately
+        gsap.set([
+          '.nav', '#hero-eyebrow', '#hero-line-1', '#hero-line-2',
+          '#hero-sub', '#hero-actions', '#hero-status', '#hero-product',
+          '.bg-grid-v', '.bg-grid-h',
+        ], { opacity: 1, y: 0, scaleY: 1, scaleX: 1 })
+        return
+      }
+
+      // ── Background grid wipe-in ────────────────────────
+      gsap.set('.bg-grid-v', { scaleY: 0, transformOrigin: 'top' })
+      gsap.set('.bg-grid-h', { scaleX: 0, transformOrigin: 'left' })
+      gsap.to('.bg-grid-v', { scaleY: 1, duration: 1.6, ease: 'power2.out', delay: 0.1 })
+      gsap.to('.bg-grid-h', { scaleX: 1, duration: 1.8, ease: 'power2.out', delay: 0.2 })
+
+      // ── Hero entrance choreography ──────────────────────
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+
+      // Nav
+      tl.fromTo('.nav',
+        { opacity: 0, y: -12 },
+        { opacity: 1, y: 0, duration: 0.6 },
+        0.15
+      )
+
+      // Eyebrow
+      tl.fromTo('#hero-eyebrow',
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.65 },
+        0.4
+      )
+
+      // Headline line 1
+      tl.fromTo('#hero-line-1',
+        { opacity: 0, y: 32 },
+        { opacity: 1, y: 0, duration: 0.75 },
+        0.55
+      )
+
+      // Headline line 2
+      tl.fromTo('#hero-line-2',
+        { opacity: 0, y: 32 },
+        { opacity: 1, y: 0, duration: 0.75 },
+        0.7
+      )
+
+      // Sub text
+      tl.fromTo('#hero-sub',
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.65 },
+        0.85
+      )
+
+      // CTA row
+      tl.fromTo('#hero-actions',
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.6 },
+        0.98
+      )
+
+      // Status
+      tl.fromTo('#hero-status',
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5 },
+        1.1
+      )
+
+      // Product panel (camera + interp + selector)
+      tl.fromTo('#hero-product',
+        { opacity: 0, y: 28 },
+        { opacity: 1, y: 0, duration: 0.9 },
+        0.85
+      )
+
+      // ── ScrollTrigger for below-fold sections ──────────
+      // Statement section lines (special — staggered within)
+      const statementLines = document.querySelectorAll('.statement-line')
+      if (statementLines.length) {
+        gsap.fromTo(statementLines,
+          { opacity: 0, y: 36 },
+          {
+            opacity: 1, y: 0,
+            duration: 0.75,
+            stagger: 0.12,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: '#mission',
+              start: 'top 72%',
+              toggleActions: 'play none none none',
+            }
+          }
+        )
+      }
+
+      // CTA section lines
+      const ctaLines = document.querySelectorAll('.cta-line')
+      if (ctaLines.length) {
+        gsap.fromTo(ctaLines,
+          { opacity: 0, y: 32 },
+          {
+            opacity: 1, y: 0,
+            duration: 0.7,
+            stagger: 0.1,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: '.cta-section',
+              start: 'top 75%',
+              toggleActions: 'play none none none',
+            }
+          }
+        )
+        gsap.fromTo('.cta-sub, .cta-actions',
+          { opacity: 0 },
+          {
+            opacity: 1, duration: 0.6,
+            stagger: 0.12,
+            ease: 'power2.out',
+            scrollTrigger: {
+              trigger: '.cta-section',
+              start: 'top 65%',
+              toggleActions: 'play none none none',
+            }
+          }
+        )
+      }
+
+      // How-it-works steps — stagger reveal
+      const howSteps = document.querySelectorAll('.how-step')
+      if (howSteps.length) {
+        gsap.fromTo(howSteps,
+          { opacity: 0, x: 24 },
+          {
+            opacity: 1, x: 0,
+            duration: 0.55,
+            stagger: 0.1,
+            ease: 'power2.out',
+            scrollTrigger: {
+              trigger: '#how-it-works',
+              start: 'top 65%',
+              toggleActions: 'play none none none',
+            }
+          }
+        )
+      }
+
+      // Stat cards stagger
+      const statCards = document.querySelectorAll('.stat-card')
+      if (statCards.length) {
+        gsap.fromTo(statCards,
+          { opacity: 0, y: 20 },
+          {
+            opacity: 1, y: 0,
+            duration: 0.6,
+            stagger: 0.1,
+            ease: 'power2.out',
+            scrollTrigger: {
+              trigger: '#problem',
+              start: 'top 65%',
+              toggleActions: 'play none none none',
+            }
+          }
+        )
+      }
+    }
+    init().catch(() => {})
+  }, [])
+
+  // ─── Pipeline animation when isRunning changes ────────
+  useEffect(() => {
+    pipeTimers.current.forEach(clearTimeout)
+    pipeTimers.current = []
+    setPipelineStage(-1)
+    if (!isRunning) return
+    ;[0, 1, 2, 3, 4].forEach((stage, i) => {
+      const t = setTimeout(() => setPipelineStage(stage), i * 420 + 200)
+      pipeTimers.current.push(t)
+    })
+    return () => pipeTimers.current.forEach(clearTimeout)
+  }, [isRunning, selectedGesture])
+
+  // ─── Camera cleanup on unmount ────────────────────────
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
+    }
+  }, [])
+
+  // ─── Camera enable ─────────────────────────────────────
+  const requestCamera = useCallback(async () => {
+    // Allow requesting from idle or error state
+    if (camState !== 'idle' && camState !== 'error') return
+    // Stop any existing stream before re-requesting
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setCamError(null)
+    setCamState('requesting')
+    // Check getUserMedia support
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setCamError('unsupported')
+      setCamState('error')
+      return
+    }
+    try {
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+          audio: true,
+        })
+      } catch {
+        // Fall back to video-only if audio fails
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        })
+      }
+      streamRef.current = stream
+      // The <video> element is always in the DOM — assign directly.
+      // The useEffect in CameraPreview will also attach it when camState -> active.
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => {})
+      }
+      setCamState('active')
+    } catch (err: unknown) {
+      let code: CamError = 'unknown'
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') code = 'denied'
+        else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') code = 'notfound'
+        else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') code = 'busy'
+      }
+      setCamError(code)
+      setCamState('error')
+    }
+  }, [camState])
+
+  // ─── Start translation ─────────────────────────────────
+  function startTranslation() {
+    if (!isRunning) {
+      setIsRunning(true)
+      const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      setReplays(r => [
+        { time: t, gesture: result.gesture, english: result.english, hindi: result.hindi, confidence: result.confidence, emoji: result.emoji },
+        ...r,
+      ].slice(0, 8))
+    }
+  }
+
+  function handleStartTranslation() {
+    if (camState === 'idle') requestCamera()
+    startTranslation()
+    document.getElementById('hero-product')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+
+  function handleGestureChange(id: string) {
+    setSelectedGesture(id)
+    if (isRunning) {
+      setIsRunning(false)
+      setTimeout(() => setIsRunning(true), 100)
+      const r = simulateRecognition(id)
+      const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      setReplays(prev => [
+        { time: t, gesture: r.gesture, english: r.english, hindi: r.hindi, confidence: r.confidence, emoji: r.emoji },
+        ...prev,
+      ].slice(0, 8))
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {/* Animated background grid */}
+      <div className="bg-canvas" aria-hidden="true">
+        <div className="bg-grid-v" />
+        <div className="bg-grid-h" />
+      </div>
+
+      <Navigation mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} onStart={handleStartTranslation} />
+
+      <main style={{ paddingTop: 0 }}>
+        <HeroSection
+          result={isRunning ? result : null}
+          isRunning={isRunning}
+          lang={lang}
+          onLang={setLang}
+          camState={camState}
+          setCamState={setCamState}
+          onCamera={requestCamera}
+          videoRef={videoRef}
+          streamRef={streamRef}
+          onStartTranslation={handleStartTranslation}
+          pipelineStage={pipelineStage}
+          selectedGesture={selectedGesture}
+          onGestureChange={handleGestureChange}
+          camError={camError}
+        />
+
+        <ProblemSection />
+
+        <MissionSection />
+
+        <HowItWorksSection
+          activeDataset={activeDataset}
+          setActiveDataset={setActiveDataset}
+          techExpanded={techExpanded}
+          setTechExpanded={setTechExpanded}
+        />
+
+        <ResearchSection
+          activeDataset={activeDataset}
+          setActiveDataset={setActiveDataset}
+        />
+
+        <RoadmapSection />
+
+        <ReplaySection
+          replays={replays}
+          lang={lang}
+          replayPlaying={replayPlaying}
+          setReplayPlaying={setReplayPlaying}
+        />
+
+        <UploadSection
+          ctx={result}
+          uploadState={uploadState}
+          setUploadState={setUploadState}
+          fileName={fileName}
+          setFileName={setFileName}
+          chipsVisible={chipsVisible}
+          setChipsVisible={setChipsVisible}
+          waveHeights={waveHeights}
+        />
+
+        <CtaSection onCamera={handleStartTranslation} />
+      </main>
 
       <footer className="footer" aria-label="Site footer">
         <div className="wrap">
           <div className="footer-inner">
-            <a href="#top" className="brand" aria-label="Back to top"><Mark/><span>Silent Interpreter</span></a>
-            <p className="footer-center">Built for the moments when being understood matters.</p>
+            <a href="#top" className="footer-brand" aria-label="Back to top">
+              <NavMark />
+              Silent Interpreter
+            </a>
             <div className="footer-links">
-              <a href="https://github.com" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={12}/></a>
-              <a href="#live">Contact</a>
-              <a href="#top">Accessibility</a>
+              <a href="https://github.com" target="_blank" rel="noreferrer">
+                GitHub <ArrowUpRight size={11} />
+              </a>
+              <a href="#how-it-works">How It Works</a>
+              <a href="#research">Research</a>
             </div>
           </div>
-          <p className="footer-end">Built for hackathons · 2026 · Demo Simulation — No AI backend connected · Indian Sign Language Research Project</p>
+          <p className="footer-note">
+            Built for hackathons · 2026 · UI Demo — No AI backend connected · Indian Sign Language Research Project
+          </p>
         </div>
       </footer>
     </div>
