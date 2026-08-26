@@ -1,0 +1,10 @@
+[
+  {
+    "id": "candidate_001",
+    "video": "isl_reference_videos/06_gestures_short.mp4",
+    "start_sec": 5.8,
+    "end_sec": 7.4,
+    "label": "HELLO",
+    "verified": true
+  }
+]

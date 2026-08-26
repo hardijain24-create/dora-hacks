@@ -1598,11 +1598,10 @@ export default function Page() {
         id: `ml-mvp`,
         gesture: display.gesture,
         emoji: display.emoji,
-        english: display.english,
-        hindi: display.hindi,
+        english: display.english === 'UNCERTAIN' ? '' : display.english,
+        hindi: display.hindi === 'UNCERTAIN' ? '' : display.hindi,
         confidence: mvpPrediction.confidence,
         context: 'Live (MVP)',
-        signature: mvpPrediction.signature,
       }
     }
     
@@ -1613,11 +1612,10 @@ export default function Page() {
       id: `ml-${mlPrediction.index}`,
       gesture: display.gesture,
       emoji: display.emoji,
-      english: display.english,
-      hindi: display.hindi,
+      english: display.english === 'UNCERTAIN' ? '' : display.english,
+      hindi: display.hindi === 'UNCERTAIN' ? '' : display.hindi,
       confidence: mlPrediction.confidence,
       context: 'Live',
-      signature: mlPrediction.signature,
     }
   }, [mlPrediction, mvpPrediction])
 
@@ -1934,6 +1932,7 @@ export default function Page() {
     if (!isLiveModel || !mlPrediction || !isRunning) return
     if (mlPrediction.label === lastReplayedPrediction.current) return
     if (mlPrediction.confidence < CONFIDENCE_THRESHOLD) return
+    if (mlPrediction.label === 'UNCERTAIN') return
     lastReplayedPrediction.current = mlPrediction.label
     const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     setReplays(prev => [

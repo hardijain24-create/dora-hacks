@@ -27,6 +27,7 @@ import * as predictor from '@/lib/isl/predictor'
 import { loadMvpModel, getMvpModelState } from '@/lib/isl/mvp_model'
 import { loadMvpLabels } from '@/lib/isl/mvp_labels'
 import * as mvpPredictor from '@/lib/isl/mvp_predictor'
+import { evaluateHeuristic } from '@/lib/isl/temporary_heuristic'
 
 // ── Module-level state for singleton ML resources ────────────────────────────
 // These are kept outside React state to prevent re-initialization on re-renders.
@@ -96,8 +97,14 @@ export function useISLRecognition(
       try {
         await Promise.all([loadModel(), loadLabels()])
         // MVP model loading is best-effort since it might not be trained yet
-        Promise.all([loadMvpModel(), loadMvpLabels()]).then(() => {
-          if (!cancelled) setState(prev => ({ ...prev, mvpModelState: 'ready' }))
+        Promise.all([loadMvpModel(), loadMvpLabels()]).then(([model, labelsLoaded]) => {
+          if (!cancelled) {
+            if (model !== null && labelsLoaded) {
+              setState(prev => ({ ...prev, mvpModelState: 'ready' }))
+            } else {
+              setState(prev => ({ ...prev, mvpModelState: 'error' }))
+            }
+          }
         }).catch(() => {
           if (!cancelled) setState(prev => ({ ...prev, mvpModelState: 'error' }))
         })
@@ -186,9 +193,17 @@ export function useISLRecognition(
         }
 
         // Run prediction (may return null if buffer not full or stride not reached)
-        const prediction = await predictor.addFrame(frame)
-        const mvpPrediction = await mvpPredictor.addMvpFrame(frame)
+        // const prediction = await predictor.addFrame(frame) // TEMPORARILY DISABLED FOR TODAY
+        // const mvpPrediction = await mvpPredictor.addMvpFrame(frame) // TEMPORARILY DISABLED
         
+        const heuristicResult = evaluateHeuristic(lmResult, now);
+        const prediction: ISLPrediction = {
+          index: -1,
+          label: heuristicResult.gesture,
+          confidence: heuristicResult.confidence
+        };
+        const mvpPrediction: ISLPrediction = prediction;
+
         // predictor internally logs [ISL] FRAME BUFFER, TENSOR, and PREDICT CALLED.
         
         // Update React state only when something meaningful changes
@@ -211,8 +226,8 @@ export function useISLRecognition(
 
           return {
             ...prev,
-            prediction: prediction !== null ? prediction : prev.prediction,
-            mvpPrediction: mvpPrediction !== null ? mvpPrediction : prev.mvpPrediction,
+            prediction: prediction,
+            mvpPrediction: mvpPrediction,
             bufferFill: fill,
             hasPose,
             hasHand,

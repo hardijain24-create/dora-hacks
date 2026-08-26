@@ -4,14 +4,20 @@ type TF = typeof import('@tensorflow/tfjs')
 type LayersModel = import('@tensorflow/tfjs').LayersModel
 type Tensor = import('@tensorflow/tfjs').Tensor
 
-const MODEL_URL = '/model/model.json'
+/**
+ * MVP model is served from a SEPARATE path from the INCLUDE model.
+ * public/model/model.json  = original INCLUDE 261-class model (untouched)
+ * public/models/isl-mvp/   = real MVP model (once trained + exported)
+ */
+const MODEL_URL = '/models/isl-mvp/model.json'
+const LABELS_URL = '/models/isl-mvp/labels.json'
 const EXPECTED_SEQ_LEN = 40
 const EXPECTED_FEAT_DIM = 258
 
 let _tf: TF | null = null
 let _model: LayersModel | null = null
 let _modelState: ModelState = 'idle'
-let _loadPromise: Promise<LayersModel> | null = null
+let _loadPromise: Promise<LayersModel | null> | null = null
 let _expectedClasses = -1
 
 export function getMvpModelState(): ModelState {
@@ -22,7 +28,7 @@ export function getMvpModel(): LayersModel | null {
   return _model
 }
 
-export async function loadMvpModel(): Promise<LayersModel> {
+export async function loadMvpModel(): Promise<LayersModel | null> {
   if (_model !== null) return _model
   if (_loadPromise !== null) return _loadPromise
 
@@ -31,18 +37,20 @@ export async function loadMvpModel(): Promise<LayersModel> {
 
   _loadPromise = (async () => {
     try {
-      const res = await fetch('/model/labels.json')
+      const res = await fetch(LABELS_URL)
       if (res.ok) {
         const labels = await res.json()
         _expectedClasses = labels.length
+        console.log(`[ISL MVP] labels loaded: ${_expectedClasses} classes`)
       } else {
-        console.warn('[ISL MVP] mvp-labels.json not found, skipping MVP loading.')
+        console.warn(`[ISL MVP] labels not found at ${LABELS_URL} — MVP model not yet trained.`)
         _modelState = 'error'
-        throw new Error('Labels not found')
+        return null
       }
     } catch (e) {
+      console.warn('[ISL MVP] Label fetch failed', e)
       _modelState = 'error'
-      throw e
+      return null
     }
 
     const tf = await import('@tensorflow/tfjs')
@@ -54,9 +62,10 @@ export async function loadMvpModel(): Promise<LayersModel> {
     try {
       model = await tf.loadLayersModel(MODEL_URL)
     } catch (err) {
+      console.warn(`[ISL MVP] Failed to load model from ${MODEL_URL}: ${String(err)}`)
       _modelState = 'error'
       _loadPromise = null
-      throw new Error(`[ISL MVP] Failed to load model from ${MODEL_URL}: ${String(err)}`)
+      return null
     }
 
     const inputShape = model.inputs[0]?.shape
@@ -66,8 +75,9 @@ export async function loadMvpModel(): Promise<LayersModel> {
       (inputShape[1] !== null && inputShape[1] !== EXPECTED_SEQ_LEN) ||
       (inputShape[2] !== null && inputShape[2] !== EXPECTED_FEAT_DIM)
     ) {
+      console.warn(`[ISL MVP] Unexpected model input shape: ${JSON.stringify(inputShape)}`)
       _modelState = 'error'
-      throw new Error(`[ISL MVP] Unexpected model input shape: ${JSON.stringify(inputShape)}`)
+      return null
     }
 
     const outputShape = model.outputs[0]?.shape
@@ -76,8 +86,9 @@ export async function loadMvpModel(): Promise<LayersModel> {
       outputShape.length !== 2 ||
       (outputShape[1] !== null && outputShape[1] !== _expectedClasses)
     ) {
+      console.warn(`[ISL MVP] Unexpected model output shape: ${JSON.stringify(outputShape)}`)
       _modelState = 'error'
-      throw new Error(`[ISL MVP] Unexpected model output shape: ${JSON.stringify(outputShape)}`)
+      return null
     }
 
     console.log('[ISL MVP] model loaded')
@@ -86,13 +97,7 @@ export async function loadMvpModel(): Promise<LayersModel> {
     return model
   })()
 
-  return _loadPromise.catch((e) => {
-    // Fail gracefully if MVP model isn't trained yet
-    _modelState = 'error'
-    _loadPromise = null
-    console.warn("[ISL MVP] MVP Model could not load. Waiting for training.")
-    throw e
-  })
+  return _loadPromise
 }
 
 export async function runMvpInference(normalizedFrames: Float32Array[]): Promise<Float32Array> {

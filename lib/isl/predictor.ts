@@ -25,7 +25,6 @@ import type { ISLPrediction } from './types'
 import { normalizeWindow, FEATURE_DIM } from './preprocessing'
 import { runInference } from './model'
 import { getLabels, cleanLabel } from './labels'
-import { ISL_GESTURE_SIGNATURES, ISL_GESTURE_SIGNATURES_2 } from './gestureSignatures'
 
 /** Must match training: SEQ_LEN = 40 */
 export const WINDOW_SIZE = 40
@@ -253,7 +252,6 @@ export async function addFrame(frame: Float32Array): Promise<ISLPrediction | nul
 
     let displayLabel = 'Uncertain / No sign detected'
     let finalConfidence = 0
-    let finalSignature = null
 
     if (dominantIdx !== -1) {
       const rawLabel = labels[dominantIdx]
@@ -267,18 +265,14 @@ export async function addFrame(frame: Float32Array): Promise<ISLPrediction | nul
         }
       }
       finalConfidence = confCount > 0 ? confSum / confCount : 0
-
-      // Merge signatures and look up by key
-      const allSignatures = { ...ISL_GESTURE_SIGNATURES, ...ISL_GESTURE_SIGNATURES_2 } as Record<string, any>
-      const signatureKey = displayLabel.toUpperCase().replace(/\s+/g, '_')
-      finalSignature = allSignatures[signatureKey] || null
     }
 
     const prediction: ISLPrediction = {
       index: dominantIdx !== -1 ? dominantIdx : maxIdx,
       label: displayLabel,
       confidence: dominantIdx !== -1 ? finalConfidence : maxVal,
-      signature: finalSignature,
+      // signature intentionally omitted — gesture signatures are display-only,
+      // not part of the inference path
     }
 
     return prediction
