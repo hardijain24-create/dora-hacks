@@ -1,0 +1,62 @@
+[
+  {
+    "video": "isl_reference_videos/01_alphabet.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_ALPHABET"
+      }
+    ]
+  },
+  {
+    "video": "isl_reference_videos/02_gestures.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_RELATIONS"
+      }
+    ]
+  },
+  {
+    "video": "isl_reference_videos/03_gestures.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_COLOURS"
+      }
+    ]
+  },
+  {
+    "video": "isl_reference_videos/04_gestures.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_QUESTIONS"
+      }
+    ]
+  },
+  {
+    "video": "isl_reference_videos/05_gestures.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_BASIC"
+      }
+    ]
+  },
+  {
+    "video": "isl_reference_videos/06_gestures_short.mp4",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 1.0,
+        "label": "UNCERTAIN_SHORT"
+      }
+    ]
+  }
+]

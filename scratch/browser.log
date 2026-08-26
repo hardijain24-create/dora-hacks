@@ -1,0 +1,654 @@
+[ISL] Model ready
+[ISL] Model ready
+[ISL] Model loading...
+[ISL] Labels loaded: 261
+[ISL] Labels loaded: 261
+[ISL] L2 regularizer compatibility class registered
+[ISL] L2 regularizer compatibility class registered
+[ISL] Input shape: ,40,258
+[ISL] Input shape: ,40,258
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready
+[ISL] Model ready
+[ISL] MediaPipe initializing...
+[ISL] MediaPipe initializing...
+[ISL] POSE LANDMARKER READY
+[ISL] POSE LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] vision ready
+[ISL] camera ready
+[ISL] MediaPipe ready
+[ISL] MediaPipe ready
+[ISL] vision ready
+[ISL] camera ready
+[ISL] Model loading...
+[ISL] Labels loaded: 261
+[ISL] Labels loaded: 261
+[ISL] MediaPipe initializing...
+[ISL] MediaPipe initializing...
+[ISL] Model loading...
+[ISL] Labels loaded: 261
+[ISL] Labels loaded: 261
+[ISL] L2 regularizer compatibility class registered
+[ISL] L2 regularizer compatibility class registered
+[ISL] Input shape: ,40,258
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Input shape: ,40,258
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready
+[ISL] Model ready
+[ISL] L2 regularizer compatibility class registered
+[ISL] L2 regularizer compatibility class registered
+[ISL] Input shape: ,40,258
+[ISL] Input shape: ,40,258
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready
+[ISL] Model ready
+[ISL] MediaPipe initializing...
+[ISL] MediaPipe initializing...
+[ISL] POSE LANDMARKER READY
+[ISL] vision ready
+[ISL] POSE LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] vision ready
+[ISL] HAND LANDMARKER READY
+[ISL] MediaPipe ready
+[ISL] MediaPipe ready
+[ISL] POSE LANDMARKER READY
+[ISL] POSE LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] MediaPipe ready
+[ISL] MediaPipe ready
+[ISL] vision ready
+[ISL] vision ready
+[ISL] camera ready
+[ISL] camera ready
+[ISL] camera ready
+[ISL] camera ready
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 1/40
+[ISL] buffer = 1/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 10/40
+[ISL] buffer = 10/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 23/40
+[ISL] buffer = 23/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 34/40
+[ISL] buffer = 34/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] Model loading...
+[ISL] Labels loaded: 261
+[ISL] Labels loaded: 261
+[ISL] L2 regularizer compatibility class registered
+[ISL] L2 regularizer compatibility class registered
+[ISL] Input shape: ,40,258
+[ISL] Input shape: ,40,258
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready. Input: ,40,258 Output: ,261
+[ISL] Model ready
+[ISL] Model ready
+[ISL] MediaPipe initializing...
+[ISL] MediaPipe initializing...
+[ISL] POSE LANDMARKER READY
+[ISL] POSE LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] HAND LANDMARKER READY
+[ISL] MediaPipe ready
+[ISL] vision ready
+[ISL] vision ready
+[ISL] MediaPipe ready
+[ISL] camera ready
+[ISL] camera ready
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] buffer = 1/40
+[ISL] features = 258
+[ISL] buffer = 1/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 9/40
+[ISL] buffer = 9/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 19/40
+[ISL] buffer = 19/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 27/40
+[ISL] buffer = 27/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 34/40
+[ISL] buffer = 34/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Cow
+[ISL] confidence = 0.39
+[ISL] prediction = Cow
+[ISL] confidence = 0.39
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Cow
+[ISL] prediction = Cow
+[ISL] confidence = 0.40
+[ISL] confidence = 0.40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Window
+[ISL] prediction = Window
+[ISL] confidence = 0.46
+[ISL] confidence = 0.46
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Cow
+[ISL] prediction = Cow
+[ISL] confidence = 0.44
+[ISL] confidence = 0.44
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Cow
+[ISL] prediction = Cow
+[ISL] confidence = 0.53
+[ISL] confidence = 0.53
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Cow
+[ISL] prediction = Cow
+[ISL] confidence = 0.45
+[ISL] confidence = 0.45
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Temple
+[ISL] prediction = Temple
+[ISL] confidence = 0.61
+[ISL] confidence = 0.61
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] confidence = 0.72
+[ISL] output = [1,261]
+[ISL] prediction = sick
+[ISL] prediction = sick
+[ISL] confidence = 0.72
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predicting [1,40,258]
+[ISL] predicting [1,40,258]
+[ISL] predict executed
+[ISL] predict executed
+[ISL] output = [1,261]
+[ISL] output = [1,261]
+[ISL] prediction = Extra
+[ISL] prediction = Extra
+[ISL] confidence = 0.45
+[ISL] confidence = 0.45
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] buffer = 40/40
+[ISL] buffer = 40/40
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
+[ISL] predict executed
+[ISL] predict executed
+[ISL] landmarks detected
+[ISL] landmarks detected
+[ISL] features = 258
+[ISL] features = 258
