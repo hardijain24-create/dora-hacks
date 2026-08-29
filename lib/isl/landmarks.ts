@@ -194,3 +194,19 @@ export function detectFrame(
     return null
   }
 }
+
+export const detectLandmarks = detectFrame
+
+export function closeLandmarkers(): void {
+  if (_poseLandmarker) {
+    try { _poseLandmarker.close() } catch {}
+    _poseLandmarker = null
+  }
+  if (_handLandmarker) {
+    try { _handLandmarker.close() } catch {}
+    _handLandmarker = null
+  }
+  _landmarkState = 'idle'
+  _initPromise = null
+}
+
