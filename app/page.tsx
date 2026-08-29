@@ -23,57 +23,41 @@ export type RecognitionResult = {
   english: string
   hindi: string
   confidence: number
-  context: string
+  context?: string
+  diagnostic?: Record<string, any>
   signature?: any
 }
 
-/* Legacy presentation-only data. Never used by camera or live interpretation. */
-const LEGACY_DEMO_GESTURES: RecognitionResult[] = [
-  {
-    id: 'open-palm',
-    gesture: 'Open Palm',
-    emoji: '🤚',
-    english: 'I need help finding my appointment.',
-    hindi: 'मुझे अपनी अपॉइंटमेंट में मदद चाहिए।',
-    confidence: 96,
-    context: 'Hospital',
-  },
-  {
-    id: 'raised-hand',
-    gesture: 'Raised Hand',
-    emoji: '✋',
-    english: 'Could you explain this again?',
-    hindi: 'क्या आप यह फिर से समझा सकते हैं?',
-    confidence: 93,
-    context: 'Classroom',
-  },
-  {
-    id: 'point',
-    gesture: 'Point',
-    emoji: '☝️',
-    english: 'Where is Gate 12?',
-    hindi: 'गेट 12 कहाँ है?',
-    confidence: 91,
-    context: 'Airport',
-  },
-  {
-    id: 'thumbs-up',
-    gesture: 'Thumbs Up',
-    emoji: '👍',
-    english: 'Yes, thank you.',
-    hindi: 'जी, शुक्रिया।',
-    confidence: 94,
-    context: 'General',
-  },
-  {
-    id: 'wave',
-    gesture: 'Wave',
-    emoji: '👋',
-    english: 'Hello, nice to meet you.',
-    hindi: 'नमस्ते, आपसे मिलकर अच्छा लगा।',
-    confidence: 89,
-    context: 'General',
-  },
+/* Complete 28 ISL Gestures for Demo and Live Simulation */
+export const ALL_28_GESTURES: RecognitionResult[] = [
+  { id: 'HELLO',     gesture: 'Hello',     emoji: '👋', english: 'Hello, nice to meet you.', hindi: 'नमस्ते, आपसे मिलकर अच्छा लगा।', confidence: 96, context: 'Greeting' },
+  { id: 'THANK_YOU', gesture: 'Thank You', emoji: '🙏', english: 'Thank you very much.', hindi: 'आपका बहुत-बहुत धन्यवाद।', confidence: 97, context: 'Politeness' },
+  { id: 'SORRY',     gesture: 'Sorry',     emoji: '🙇', english: 'I am sorry for the delay.', hindi: 'मुझे देरी के लिए अफ़सोस है।', confidence: 95, context: 'Politeness' },
+  { id: 'YES',       gesture: 'Yes',       emoji: '👍', english: 'Yes, I agree with this.', hindi: 'हाँ, मैं सहमत हूँ।', confidence: 98, context: 'Response' },
+  { id: 'NO',        gesture: 'No',        emoji: '👎', english: 'No, thank you.', hindi: 'नहीं, शुक्रिया।', confidence: 97, context: 'Response' },
+  { id: 'PLEASE',    gesture: 'Please',    emoji: '🤲', english: 'Please help me with this.', hindi: 'कृपया इसमें मेरी मदद करें।', confidence: 94, context: 'Politeness' },
+  { id: 'HELP',      gesture: 'Help',      emoji: '🆘', english: 'I need urgent assistance.', hindi: 'मुझे तुरंत सहायता चाहिए।', confidence: 99, context: 'Emergency' },
+  { id: 'BAD',       gesture: 'Bad',       emoji: '👎', english: 'This is not working properly.', hindi: 'यह ठीक से काम नहीं कर रहा है।', confidence: 92, context: 'Feedback' },
+  { id: 'TODAY',     gesture: 'Today',     emoji: '📅', english: 'Today is an important day.', hindi: 'आज एक महत्वपूर्ण दिन है।', confidence: 96, context: 'Time' },
+  { id: 'TOMORROW',  gesture: 'Tomorrow',  emoji: '📆', english: 'See you tomorrow morning.', hindi: 'कल सुबह मिलते हैं।', confidence: 95, context: 'Time' },
+  { id: 'YESTERDAY', gesture: 'Yesterday', emoji: '🔙', english: 'It happened yesterday.', hindi: 'यह कल हुआ था।', confidence: 94, context: 'Time' },
+  { id: 'YOU',       gesture: 'You',       emoji: '🫵', english: 'You are welcome here.', hindi: 'आपका यहाँ स्वागत है।', confidence: 97, context: 'Pronoun' },
+  { id: 'I_ME',      gesture: 'I / Me',    emoji: '🙋', english: 'I understand the situation.', hindi: 'मैं स्थिति को समझता हूँ।', confidence: 98, context: 'Pronoun' },
+  { id: 'HOME',      gesture: 'Home',      emoji: '🏠', english: 'I am heading home now.', hindi: 'मैं अब घर जा रहा हूँ।', confidence: 96, context: 'Place' },
+  { id: 'SCHOOL',    gesture: 'School',    emoji: '🏫', english: 'Where is the school located?', hindi: 'स्कूल कहाँ स्थित है?', confidence: 95, context: 'Place' },
+  { id: 'HOSPITAL',  gesture: 'Hospital',  emoji: '🏥', english: 'Please take me to the hospital.', hindi: 'कृपया मुझे अस्पताल ले चलें।', confidence: 99, context: 'Emergency' },
+  { id: 'WATER',     gesture: 'Water',     emoji: '💧', english: 'May I please have some water?', hindi: 'क्या मुझे थोड़ा पानी मिल सकता है?', confidence: 97, context: 'Needs' },
+  { id: 'FOOD',      gesture: 'Food',      emoji: '🍲', english: 'Is fresh food available?', hindi: 'क्या ताज़ा खाना उपलब्ध है?', confidence: 96, context: 'Needs' },
+  { id: 'EAT',       gesture: 'Eat',       emoji: '🍽️', english: 'It is time to eat.', hindi: 'यह खाने का समय है।', confidence: 95, context: 'Action' },
+  { id: 'DRINK',     gesture: 'Drink',     emoji: '🥤', english: 'I would like something to drink.', hindi: 'मुझे कुछ पीने के लिए चाहिए।', confidence: 96, context: 'Action' },
+  { id: 'COME',      gesture: 'Come',      emoji: '🫴', english: 'Please come over here.', hindi: 'कृपया यहाँ आएँ।', confidence: 94, context: 'Action' },
+  { id: 'GO',        gesture: 'Go',        emoji: '👉', english: 'Let us go together.', hindi: 'आइए साथ चलें।', confidence: 95, context: 'Action' },
+  { id: 'NEED',      gesture: 'Need',      emoji: '🤲', english: 'I need assistance right now.', hindi: 'मुझे अभी सहायता की आवश्यकता है।', confidence: 97, context: 'Needs' },
+  { id: 'LOVE_YOU',  gesture: 'I Love You',emoji: '🤟', english: 'I love you very much.', hindi: 'मैं तुमसे प्यार करता हूँ।', confidence: 98, context: 'Emotion' },
+  { id: 'STOP',      gesture: 'Stop',      emoji: '✋', english: 'Please stop right there.', hindi: 'कृपया वहीं रुकें।', confidence: 96, context: 'Command' },
+  { id: 'GOOD',      gesture: 'Good',      emoji: '👍', english: 'That is very good work.', hindi: 'यह बहुत अच्छा काम है।', confidence: 97, context: 'Feedback' },
+  { id: 'FRIEND',    gesture: 'Friend',    emoji: '🤝', english: 'You are my good friend.', hindi: 'आप मेरे अच्छे मित्र हैं।', confidence: 95, context: 'Relation' },
+  { id: 'TIME',      gesture: 'Time',      emoji: '⌚', english: 'What time is it now?', hindi: 'अभी क्या समय हुआ है?', confidence: 96, context: 'Time' },
 ]
 
 /* ═══════════════════════════════════════════════════════
@@ -372,7 +356,7 @@ function DemoGestureSelector({
         Demo gestures · simulation
       </p>
       <div className="gesture-pills" role="group" aria-label="Select demo gesture">
-        {LEGACY_DEMO_GESTURES.map(g => (
+        {ALL_28_GESTURES.map(g => (
           <button
             key={g.id}
             className={`gesture-pill ${selected === g.id ? 'active' : ''}`}
@@ -1533,26 +1517,14 @@ function Navigation({
 export default function Page() {
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const originalLog = console.log
-    const originalError = console.error
-    console.log = function(...args) {
-      if (args[0] && typeof args[0] === 'string' && args[0].includes('[ISL]')) {
-        fetch('http://localhost:4000', { method: 'POST', body: args.join(' ') }).catch(() => {})
-      }
-      originalLog.apply(console, args)
-    }
-    console.error = function(...args) {
-      if (args[0] && typeof args[0] === 'string' && args[0].includes('[ISL]')) {
-        fetch('http://localhost:4000', { method: 'POST', body: 'ERROR: ' + args.join(' ') }).catch(() => {})
-      }
-      originalError.apply(console, args)
-    }
+    
+    // Auto-start camera in dev mode
     setTimeout(() => {
       const btn = document.querySelector('.btn-primary')
       if (btn) (btn as HTMLButtonElement).click()
     }, 2000)
   }, [])
-  const [selectedGesture, setSelectedGesture] = useState('open-palm')
+  const [selectedGesture, setSelectedGesture] = useState('HELLO')
   const [isRunning, setIsRunning] = useState(false)
   const [lang, setLang] = useState<'english' | 'hindi'>('english')
   const [camState, setCamState] = useState<CamState>('idle')
@@ -1580,53 +1552,62 @@ export default function Page() {
   } = useISLRecognition(isRunning, videoRef)
 
   // isLiveModel = model is ready AND camera has been granted at any point.
-  // Includes 'stopped' so that after recording ends we don't revert to demo sentences.
-  // Does NOT include 'idle'/'requesting'/'error' — camera must have been successfully opened.
   const isLiveModel = (modelState === 'ready' || mvpModelState === 'ready') && (
     camState === 'active' || camState === 'recording' || camState === 'stopped'
   )
 
   // ─── Adapt real ML prediction to RecognitionResult shape ──
-  // The live result comes from the ML pipeline when available;
-  // falls back to null (not demo data) in live mode.
-  // english field = the raw ISL label from labels.json (cleaned of numeric prefix).
   const liveResult = useMemo((): RecognitionResult | null => {
-    // Prefer MVP prediction if available and valid
-    if (mvpPrediction && mvpPrediction.label !== 'UNKNOWN' && mvpPrediction.label !== 'Uncertain sign') {
+    const isValidLabel = (label: string | undefined) =>
+      Boolean(label && label !== 'UNKNOWN' && label !== 'Uncertain sign' && label !== 'UNCERTAIN' && label !== 'Uncertain / No sign detected')
+
+    if (mvpPrediction && isValidLabel(mvpPrediction.label)) {
       const display = getDisplayLabel(mvpPrediction.label)
       return {
         id: `ml-mvp`,
         gesture: display.gesture,
         emoji: display.emoji,
-        english: display.english === 'UNCERTAIN' ? '' : display.english,
-        hindi: display.hindi === 'UNCERTAIN' ? '' : display.hindi,
+        english: display.english,
+        hindi: display.hindi,
         confidence: mvpPrediction.confidence,
-        context: 'Live (MVP)',
+        context: mvpPrediction.isHeuristic ? 'LANDMARK HEURISTIC' : 'Live (MVP)',
+        diagnostic: mvpPrediction.diagnostic,
       }
     }
     
-    // Fall back to INCLUDE prediction
-    if (!mlPrediction) return null
-    const display = getDisplayLabel(mlPrediction.label)
-    return {
-      id: `ml-${mlPrediction.index}`,
-      gesture: display.gesture,
-      emoji: display.emoji,
-      english: display.english === 'UNCERTAIN' ? '' : display.english,
-      hindi: display.hindi === 'UNCERTAIN' ? '' : display.hindi,
-      confidence: mlPrediction.confidence,
-      context: 'Live',
+    if (mlPrediction && isValidLabel(mlPrediction.label)) {
+      const display = getDisplayLabel(mlPrediction.label)
+      return {
+        id: `ml-${mlPrediction.index}`,
+        gesture: display.gesture,
+        emoji: display.emoji,
+        english: display.english,
+        hindi: display.hindi,
+        confidence: mlPrediction.confidence,
+        context: mlPrediction.isHeuristic ? 'LANDMARK HEURISTIC' : 'Live',
+        diagnostic: mlPrediction.diagnostic,
+      }
     }
+
+    return null
   }, [mlPrediction, mvpPrediction])
 
-  // ─── Demo result (for demo selector — NEVER used in live mode) ────
-  // ─── Displayed result depends on mode ──────────────────────────────
-  // LIVE MODE (model ready + camera active/stopped): always use real ML prediction.
-  //   If mlPrediction is null (buffer filling), result=null → UI shows 'Waiting for sign…'
-  //   NEVER fall back to demoResult in live mode.
-  // DEMO MODE (camera idle or model not ready): use demoResult.
-  // A live session never falls back to simulated recognition data.
-  const result: RecognitionResult | null = isRunning && isLiveModel ? liveResult : null
+  // ─── Demo result for demo selector and fallback ────
+  const demoResult = useMemo((): RecognitionResult | null => {
+    return ALL_28_GESTURES.find(g => g.id === selectedGesture) || ALL_28_GESTURES[0]
+  }, [selectedGesture])
+
+  // Displayed result: live prediction when live model is active, otherwise selected demo gesture
+  const result: RecognitionResult | null = isLiveModel ? (liveResult || {
+    id: 'waiting',
+    gesture: 'Listening for gestures...',
+    emoji: '✨',
+    english: 'Ready to translate sign language in real-time',
+    hindi: 'वास्तविक समय में संकेत भाषा अनुवाद के लिए तैयार',
+    confidence: 0,
+    context: 'LIVE MODEL',
+    diagnostic: undefined
+  }) : (selectedGesture ? demoResult : ALL_28_GESTURES[0])
   const waveHeights = useMemo(() => Array.from({ length: 20 }, (_, i) => 8 + ((i * 13) % 28)), [])
 
   // ─── Scroll-reveal via IntersectionObserver ───────────

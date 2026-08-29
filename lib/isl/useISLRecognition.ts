@@ -27,7 +27,8 @@ import * as predictor from '@/lib/isl/predictor'
 import { loadMvpModel, getMvpModelState } from '@/lib/isl/mvp_model'
 import { loadMvpLabels } from '@/lib/isl/mvp_labels'
 import * as mvpPredictor from '@/lib/isl/mvp_predictor'
-import { evaluateHeuristic } from '@/lib/isl/temporary_heuristic'
+import { evaluateHeuristic, resetHeuristicState } from '@/lib/isl/temporary_heuristic'
+
 
 // ── Module-level state for singleton ML resources ────────────────────────────
 // These are kept outside React state to prevent re-initialization on re-renders.
@@ -179,6 +180,12 @@ export function useISLRecognition(
           lastDebugLogRef.current = debugNow
           if (lmResult.pose || lmResult.leftHand || lmResult.rightHand) {
             console.log('[ISL] landmarks: OK')
+            console.log('[ISL DEBUG]')
+            console.log(`pose: ${lmResult.pose ? lmResult.pose.length / 4 : 0}`)
+            console.log(`leftHand: ${lmResult.leftHand ? lmResult.leftHand.length / 3 : 0}`)
+            console.log(`rightHand: ${lmResult.rightHand ? lmResult.rightHand.length / 3 : 0}`)
+            const handCount = (lmResult.leftHand ? 1 : 0) + (lmResult.rightHand ? 1 : 0);
+            console.log(`hands: ${handCount}`)
           }
         }
 
@@ -192,17 +199,20 @@ export function useISLRecognition(
           console.log(`[ISL] feature length: ${frame.length}`)
         }
 
-        // Run prediction (may return null if buffer not full or stride not reached)
-        // const prediction = await predictor.addFrame(frame) // TEMPORARILY DISABLED FOR TODAY
-        // const mvpPrediction = await mvpPredictor.addMvpFrame(frame) // TEMPORARILY DISABLED
-        
+        // Run heuristic prediction for 28 conversational gestures
         const heuristicResult = evaluateHeuristic(lmResult, now);
         const prediction: ISLPrediction = {
           index: -1,
           label: heuristicResult.gesture,
-          confidence: heuristicResult.confidence
+          confidence: heuristicResult.confidence,
+          isHeuristic: heuristicResult.isHeuristic,
+          diagnostic: heuristicResult.diagnostic
         };
         const mvpPrediction: ISLPrediction = prediction;
+
+        if (shouldDebug && heuristicResult.diagnostic) {
+          console.log('[ISL] Heuristic Diagnostic:', JSON.stringify(heuristicResult.diagnostic, null, 2));
+        }
 
         // predictor internally logs [ISL] FRAME BUFFER, TENSOR, and PREDICT CALLED.
         
@@ -252,10 +262,12 @@ export function useISLRecognition(
       cancelAnimationFrame(rafIdRef.current)
       rafIdRef.current = null
     }
-    // Reset predictor buffer
+    // Reset predictor buffer & heuristic history
+    resetHeuristicState()
     import('@/lib/isl/predictor').then(({ resetPredictor }) => resetPredictor()).catch(() => {})
     import('@/lib/isl/mvp_predictor').then(({ resetMvpPredictor }) => resetMvpPredictor()).catch(() => {})
   }, [])
+
 
   // ── Initialize MediaPipe when we start running ───────────────────────────
   useEffect(() => {

@@ -17,6 +17,10 @@ export interface ISLPrediction {
   segmentFrames?: number
   /** Always 40 after resampling (sanity check) */
   resampledFrames?: number
+  /** True if prediction came from heuristic layer instead of ML */
+  isHeuristic?: boolean
+  /** Real-time diagnostic metrics from the heuristic layer */
+  diagnostic?: Record<string, any>
 }
 
 /** Current state of the TensorFlow.js model loader. */

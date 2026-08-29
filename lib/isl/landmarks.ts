@@ -26,11 +26,8 @@ type HandLandmarker = import('@mediapipe/tasks-vision').HandLandmarker
  */
 const MP_WASM_URL = '/mediapipe/wasm'
 
-const POSE_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
-
-const HAND_MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+const POSE_MODEL_URL = '/mediapipe/models/pose_landmarker_lite.task'
+const HAND_MODEL_URL = '/mediapipe/models/hand_landmarker.task'
 
 let _mpVision: MPVision | null = null
 let _poseLandmarker: PoseLandmarker | null = null
@@ -62,31 +59,47 @@ export async function initLandmarkers(): Promise<void> {
 
       const filesetResolver = await FilesetResolver.forVisionTasks(MP_WASM_URL)
 
-      // Create PoseLandmarker in VIDEO mode
-      _poseLandmarker = await PL.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: POSE_MODEL_URL,
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      })
+      const createPose = async (delegate: 'GPU' | 'CPU') => {
+        return PL.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: POSE_MODEL_URL,
+            delegate,
+          },
+          runningMode: 'VIDEO',
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.5,
+          minPosePresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        })
+      }
 
-      // Create HandLandmarker in VIDEO mode
-      _handLandmarker = await HL.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: HAND_MODEL_URL,
-          delegate: 'GPU',
-        },
-        runningMode: 'VIDEO',
-        numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      })
+      const createHand = async (delegate: 'GPU' | 'CPU') => {
+        return HL.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: HAND_MODEL_URL,
+            delegate,
+          },
+          runningMode: 'VIDEO',
+          numHands: 2,
+          minHandDetectionConfidence: 0.25,
+          minHandPresenceConfidence: 0.25,
+          minTrackingConfidence: 0.25,
+        })
+      }
+
+      try {
+        _poseLandmarker = await createPose('GPU')
+      } catch (err) {
+        console.warn('[ISL] PoseLandmarker GPU delegate failed, falling back to CPU:', err)
+        _poseLandmarker = await createPose('CPU')
+      }
+
+      try {
+        _handLandmarker = await createHand('GPU')
+      } catch (err) {
+        console.warn('[ISL] HandLandmarker GPU delegate failed, falling back to CPU:', err)
+        _handLandmarker = await createHand('CPU')
+      }
 
       _landmarkState = 'ready'
       console.log('[ISL] POSE LANDMARKER READY')
@@ -150,9 +163,8 @@ export function detectLandmarks(
     if (handResult.landmarks && handResult.landmarks.length > 0) {
       for (let h = 0; h < handResult.landmarks.length; h++) {
         const lm = handResult.landmarks[h]
-        // Determine handedness from MediaPipe metadata — NOT array index
-        // handResult.handedness[h][0].categoryName === 'Left' | 'Right'
-        const handednessCategory = handResult.handedness?.[h]?.[0]?.categoryName ?? ''
+        const rawCategory = handResult.handedness?.[h]?.[0]?.categoryName ?? ''
+        const handednessCategory = rawCategory.toLowerCase().trim()
 
         const handFeatures = new Float32Array(21 * 3)
         for (let i = 0; i < 21; i++) {
@@ -162,21 +174,24 @@ export function detectLandmarks(
           handFeatures[base + 2] = lm[i].z
         }
 
-        // MediaPipe handedness from a mirrored (selfie) camera is inverted.
-        // When video facingMode='user', MediaPipe 'Left' corresponds to the
-        // user's RIGHT hand in the image, and vice versa.
-        // The training used the same setup, so we replicate it exactly:
-        // store MediaPipe's reported "Left" as leftHand and "Right" as rightHand.
-        if (handednessCategory === 'Left') {
+        if (handednessCategory === 'left') {
           result.leftHand = handFeatures
-        } else if (handednessCategory === 'Right') {
+        } else if (handednessCategory === 'right') {
           result.rightHand = handFeatures
+        } else {
+          // Fallback: assign first detected hand to right hand, second hand to left hand
+          if (!result.rightHand) {
+            result.rightHand = handFeatures
+          } else {
+            result.leftHand = handFeatures
+          }
         }
       }
     }
   } catch (err) {
     console.warn('[ISL] Hand detection error:', err)
   }
+
 
   return result
 }

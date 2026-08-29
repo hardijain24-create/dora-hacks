@@ -267,8 +267,52 @@ const DISPLAY_MAP: Record<string, DisplayData> = {
   "healthy": { gesture: "healthy", emoji: "💪", english: "healthy", hindi: "स्वस्थ" },
   "Ex. Monsoon": { gesture: "Ex. Monsoon", emoji: "🤙", english: "Ex. Monsoon", hindi: "Ex. Monsoon" },
   "Extra": { gesture: "Extra", emoji: "🤙", english: "Extra", hindi: "Extra" },
+  "HELLO": { gesture: "Hello", emoji: "👋", english: "Hello", hindi: "नमस्ते" },
+  "THANK_YOU": { gesture: "Thank You", emoji: "🙏", english: "Thank You", hindi: "धन्यवाद" },
+  "THANKYOU": { gesture: "Thank You", emoji: "🙏", english: "Thank You", hindi: "धन्यवाद" },
+  "SORRY": { gesture: "Sorry", emoji: "🙇", english: "Sorry", hindi: "माफ़ कीजिये" },
+  "YES": { gesture: "Yes", emoji: "👍", english: "Yes", hindi: "हाँ" },
+  "NO": { gesture: "No", emoji: "👎", english: "No", hindi: "नहीं" },
+  "PLEASE": { gesture: "Please", emoji: "🤲", english: "Please", hindi: "कृपया" },
+  "HELP": { gesture: "Help", emoji: "🆘", english: "Help", hindi: "मदद" },
+  "BAD": { gesture: "Bad", emoji: "👎", english: "Bad", hindi: "बुरा" },
+  "HOW": { gesture: "How", emoji: "🤷", english: "How", hindi: "कैसे" },
+  "WHERE": { gesture: "Where", emoji: "📍", english: "Where", hindi: "कहाँ" },
+  "WHAT": { gesture: "What", emoji: "❓", english: "What", hindi: "क्या" },
+  "WHY": { gesture: "Why", emoji: "🤷", english: "Why", hindi: "क्यों" },
+  "WHEN": { gesture: "When", emoji: "⏰", english: "When", hindi: "कब" },
+  "TODAY": { gesture: "Today", emoji: "📅", english: "Today", hindi: "आज" },
+  "TOMORROW": { gesture: "Tomorrow", emoji: "📆", english: "Tomorrow", hindi: "कल" },
+  "YESTERDAY": { gesture: "Yesterday", emoji: "🔙", english: "Yesterday", hindi: "बीता हुआ कल" },
+  "YOU": { gesture: "You", emoji: "🫵", english: "You", hindi: "तुम" },
+  "I_ME": { gesture: "I / Me", emoji: "🙋", english: "I / Me", hindi: "मैं" },
+  "ME": { gesture: "I / Me", emoji: "🙋", english: "I / Me", hindi: "मैं" },
+  "HOME": { gesture: "Home", emoji: "🏠", english: "Home", hindi: "घर" },
+  "SCHOOL": { gesture: "School", emoji: "🏫", english: "School", hindi: "विद्यालय" },
+  "HOSPITAL": { gesture: "Hospital", emoji: "🏥", english: "Hospital", hindi: "अस्पताल" },
+  "WATER": { gesture: "Water", emoji: "💧", english: "Water", hindi: "पानी" },
+  "FOOD": { gesture: "Food", emoji: "🍲", english: "Food", hindi: "खाना" },
+  "EAT": { gesture: "Eat", emoji: "🍽️", english: "Eat", hindi: "खाओ" },
+  "DRINK": { gesture: "Drink", emoji: "🥤", english: "Drink", hindi: "पीओ" },
+  "COME": { gesture: "Come", emoji: "🫴", english: "Come", hindi: "आओ" },
+  "GO": { gesture: "Go", emoji: "👉", english: "Go", hindi: "जाओ" },
+  "NEED": { gesture: "Need", emoji: "🤲", english: "Need", hindi: "ज़रूरत" },
+  "LOVE_YOU": { gesture: "I Love You", emoji: "🤟", english: "I Love You", hindi: "प्रेम" },
+  "STOP": { gesture: "Stop", emoji: "✋", english: "Stop", hindi: "रुकें" },
+  "GOOD": { gesture: "Good", emoji: "👍", english: "Good", hindi: "अच्छा" },
+  "FRIEND": { gesture: "Friend", emoji: "🤝", english: "Friend", hindi: "मित्र" },
+  "TIME": { gesture: "Time", emoji: "⌚", english: "Time", hindi: "समय" }
 }
 
 export function getDisplayLabel(cleanLabel: string): DisplayData {
-  return DISPLAY_MAP[cleanLabel] || { gesture: cleanLabel, emoji: '🤙', english: cleanLabel, hindi: cleanLabel }
+  if (!cleanLabel) return { gesture: '', emoji: '🤙', english: '', hindi: '' }
+  const clean = cleanLabel.replace(/^\d+\.\s*/, '').trim()
+  const upperKey = clean.toUpperCase().replace(/\s+/g, '_')
+  
+  return DISPLAY_MAP[clean] || DISPLAY_MAP[upperKey] || DISPLAY_MAP[rawKeyLookup(clean)] || { gesture: clean, emoji: '🤙', english: clean, hindi: clean }
 }
+
+function rawKeyLookup(key: string): string {
+  return key.toUpperCase()
+}
+
