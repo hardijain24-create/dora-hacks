@@ -6,7 +6,6 @@ type HandLandmarker = import('@mediapipe/tasks-vision').HandLandmarker
 
 /**
  * Local WASM base path — served directly by Next.js from public/mediapipe/wasm
- * Using local WASM avoids CDN version mismatches and external network dependency.
  */
 const MP_WASM_URL = '/mediapipe/wasm'
 
@@ -24,6 +23,39 @@ let _initPromise: Promise<void> | null = null
 
 export function getLandmarkState(): LandmarkState {
   return _landmarkState
+}
+
+/**
+ * Robust 4-stage waterfall loader:
+ * 1. Try local URL with GPU delegate
+ * 2. Try local URL with CPU delegate
+ * 3. Try CDN URL with GPU delegate
+ * 4. Try CDN URL with CPU delegate
+ */
+async function loadLandmarkerWithFallback<T>(
+  factory: (modelPath: string, delegate: 'GPU' | 'CPU') => Promise<T>,
+  localUrl: string,
+  cdnUrl: string
+): Promise<T> {
+  try {
+    return await factory(localUrl, 'GPU')
+  } catch (e1) {
+    console.warn(`[ISL] Local GPU failed for ${localUrl}, trying local CPU...`)
+  }
+
+  try {
+    return await factory(localUrl, 'CPU')
+  } catch (e2) {
+    console.warn(`[ISL] Local CPU failed for ${localUrl}, trying CDN GPU...`)
+  }
+
+  try {
+    return await factory(cdnUrl, 'GPU')
+  } catch (e3) {
+    console.warn(`[ISL] CDN GPU failed for ${cdnUrl}, trying CDN CPU...`)
+  }
+
+  return await factory(cdnUrl, 'CPU')
 }
 
 /**
@@ -80,37 +112,8 @@ export async function initLandmarkers(): Promise<void> {
         })
       }
 
-      // Try local pose model first, fallback to CDN if 404
-      try {
-        try {
-          _poseLandmarker = await createPose(POSE_MODEL_URL, 'GPU')
-        } catch {
-          _poseLandmarker = await createPose(POSE_MODEL_URL, 'CPU')
-        }
-      } catch (localErr) {
-        console.warn('[ISL] Local PoseLandmarker model failed, falling back to CDN model:', localErr)
-        try {
-          _poseLandmarker = await createPose(CDN_POSE_MODEL_URL, 'GPU')
-        } catch {
-          _poseLandmarker = await createPose(CDN_POSE_MODEL_URL, 'CPU')
-        }
-      }
-
-      // Try local hand model first, fallback to CDN if 404
-      try {
-        try {
-          _handLandmarker = await createHand(HAND_MODEL_URL, 'GPU')
-        } catch {
-          _handLandmarker = await createHand(HAND_MODEL_URL, 'CPU')
-        }
-      } catch (localErr) {
-        console.warn('[ISL] Local HandLandmarker model failed, falling back to CDN model:', localErr)
-        try {
-          _handLandmarker = await createHand(CDN_HAND_MODEL_URL, 'GPU')
-        } catch {
-          _handLandmarker = await createHand(CDN_HAND_MODEL_URL, 'CPU')
-        }
-      }
+      _poseLandmarker = await loadLandmarkerWithFallback(createPose, POSE_MODEL_URL, CDN_POSE_MODEL_URL)
+      _handLandmarker = await loadLandmarkerWithFallback(createHand, HAND_MODEL_URL, CDN_HAND_MODEL_URL)
 
       _landmarkState = 'ready'
       console.log('[ISL] POSE LANDMARKER READY')
@@ -209,4 +212,3 @@ export function closeLandmarkers(): void {
   _landmarkState = 'idle'
   _initPromise = null
 }
-
