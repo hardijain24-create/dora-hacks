@@ -1,21 +1,5 @@
-/**
- * ISL Recognition Pipeline — MediaPipe Landmark Detector Service
- *
- * Initializes PoseLandmarker and HandLandmarker once.
- * Processes the existing live video element per frame.
- * Returns raw landmark data in the exact 258-feature layout.
- *
- * Training used MediaPipe Tasks Vision PoseLandmarker + HandLandmarker.
- * The browser must use the same detectors for landmark parity.
- *
- * IMPORTANT: Handedness is determined by MediaPipe's category label
- * ("Left" / "Right"), NOT by result array index.
- */
-
-import type { FrameLandmarks } from './types'
 import type { LandmarkState } from './types'
 
-// MediaPipe Tasks Vision types (imported lazily to avoid SSR)
 type MPVision = typeof import('@mediapipe/tasks-vision')
 type PoseLandmarker = import('@mediapipe/tasks-vision').PoseLandmarker
 type HandLandmarker = import('@mediapipe/tasks-vision').HandLandmarker
@@ -28,6 +12,9 @@ const MP_WASM_URL = '/mediapipe/wasm'
 
 const POSE_MODEL_URL = '/mediapipe/models/pose_landmarker_lite.task'
 const HAND_MODEL_URL = '/mediapipe/models/hand_landmarker.task'
+
+const CDN_POSE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task'
+const CDN_HAND_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task'
 
 let _mpVision: MPVision | null = null
 let _poseLandmarker: PoseLandmarker | null = null
@@ -57,12 +44,18 @@ export async function initLandmarkers(): Promise<void> {
 
       const { FilesetResolver, PoseLandmarker: PL, HandLandmarker: HL } = vision
 
-      const filesetResolver = await FilesetResolver.forVisionTasks(MP_WASM_URL)
+      let filesetResolver
+      try {
+        filesetResolver = await FilesetResolver.forVisionTasks(MP_WASM_URL)
+      } catch (err) {
+        console.warn('[ISL] Local WASM resolver failed, falling back to CDN WASM:', err)
+        filesetResolver = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm')
+      }
 
-      const createPose = async (delegate: 'GPU' | 'CPU') => {
+      const createPose = async (modelPath: string, delegate: 'GPU' | 'CPU') => {
         return PL.createFromOptions(filesetResolver, {
           baseOptions: {
-            modelAssetPath: POSE_MODEL_URL,
+            modelAssetPath: modelPath,
             delegate,
           },
           runningMode: 'VIDEO',
@@ -73,10 +66,10 @@ export async function initLandmarkers(): Promise<void> {
         })
       }
 
-      const createHand = async (delegate: 'GPU' | 'CPU') => {
+      const createHand = async (modelPath: string, delegate: 'GPU' | 'CPU') => {
         return HL.createFromOptions(filesetResolver, {
           baseOptions: {
-            modelAssetPath: HAND_MODEL_URL,
+            modelAssetPath: modelPath,
             delegate,
           },
           runningMode: 'VIDEO',
@@ -87,18 +80,36 @@ export async function initLandmarkers(): Promise<void> {
         })
       }
 
+      // Try local pose model first, fallback to CDN if 404
       try {
-        _poseLandmarker = await createPose('GPU')
-      } catch (err) {
-        console.warn('[ISL] PoseLandmarker GPU delegate failed, falling back to CPU:', err)
-        _poseLandmarker = await createPose('CPU')
+        try {
+          _poseLandmarker = await createPose(POSE_MODEL_URL, 'GPU')
+        } catch {
+          _poseLandmarker = await createPose(POSE_MODEL_URL, 'CPU')
+        }
+      } catch (localErr) {
+        console.warn('[ISL] Local PoseLandmarker model failed, falling back to CDN model:', localErr)
+        try {
+          _poseLandmarker = await createPose(CDN_POSE_MODEL_URL, 'GPU')
+        } catch {
+          _poseLandmarker = await createPose(CDN_POSE_MODEL_URL, 'CPU')
+        }
       }
 
+      // Try local hand model first, fallback to CDN if 404
       try {
-        _handLandmarker = await createHand('GPU')
-      } catch (err) {
-        console.warn('[ISL] HandLandmarker GPU delegate failed, falling back to CPU:', err)
-        _handLandmarker = await createHand('CPU')
+        try {
+          _handLandmarker = await createHand(HAND_MODEL_URL, 'GPU')
+        } catch {
+          _handLandmarker = await createHand(HAND_MODEL_URL, 'CPU')
+        }
+      } catch (localErr) {
+        console.warn('[ISL] Local HandLandmarker model failed, falling back to CDN model:', localErr)
+        try {
+          _handLandmarker = await createHand(CDN_HAND_MODEL_URL, 'GPU')
+        } catch {
+          _handLandmarker = await createHand(CDN_HAND_MODEL_URL, 'CPU')
+        }
       }
 
       _landmarkState = 'ready'
@@ -108,111 +119,78 @@ export async function initLandmarkers(): Promise<void> {
     } catch (err) {
       _landmarkState = 'error'
       _initPromise = null
-      throw new Error(`[ISL] MediaPipe initialization failed: ${String(err)}`)
+      console.error('[ISL] MediaPipe init failed:', err)
     }
   })()
 
   return _initPromise
 }
 
-/**
- * Processes one video frame and returns raw landmark data.
- *
- * @param video — the existing live video element (already playing)
- * @param timestampMs — monotonically increasing timestamp in milliseconds
- * @returns FrameLandmarks with pose / leftHand / rightHand arrays (or null if not detected)
- */
-export function detectLandmarks(
+export function detectFrame(
   video: HTMLVideoElement,
   timestampMs: number
-): FrameLandmarks {
-  const result: FrameLandmarks = {
-    pose: null,
-    leftHand: null,
-    rightHand: null,
+): {
+  pose: Float32Array | null
+  leftHand: Float32Array | null
+  rightHand: Float32Array | null
+} | null {
+  if (_landmarkState !== 'ready' || !_poseLandmarker || !_handLandmarker) {
+    return null
   }
 
-  if (_poseLandmarker === null || _handLandmarker === null) {
-    return result
+  if (!video || video.readyState < 2 || video.paused || video.ended) {
+    return null
   }
 
-  // ── Pose detection ─────────────────────────────────────────────────
   try {
     const poseResult = _poseLandmarker.detectForVideo(video, timestampMs)
-    if (poseResult.landmarks && poseResult.landmarks.length > 0) {
-      const lm = poseResult.landmarks[0]
-      const poseFeatures = new Float32Array(33 * 4)
-      for (let i = 0; i < 33; i++) {
-        const base = i * 4
-        poseFeatures[base]     = lm[i].x
-        poseFeatures[base + 1] = lm[i].y
-        poseFeatures[base + 2] = lm[i].z
-        poseFeatures[base + 3] = lm[i].visibility ?? 0
-      }
-      result.pose = poseFeatures
-    }
-  } catch (err) {
-    // Pose failure → pose remains null (zero-filled in feature vector)
-    console.warn('[ISL] Pose detection error:', err)
-  }
-
-  // ── Hand detection ─────────────────────────────────────────────────
-  try {
     const handResult = _handLandmarker.detectForVideo(video, timestampMs)
 
-    if (handResult.landmarks && handResult.landmarks.length > 0) {
-      for (let h = 0; h < handResult.landmarks.length; h++) {
-        const lm = handResult.landmarks[h]
-        const rawCategory = handResult.handedness?.[h]?.[0]?.categoryName ?? ''
-        const handednessCategory = rawCategory.toLowerCase().trim()
+    let poseArr: Float32Array | null = null
+    if (poseResult.landmarks && poseResult.landmarks.length > 0) {
+      const lms = poseResult.landmarks[0]
+      poseArr = new Float32Array(33 * 4)
+      for (let i = 0; i < Math.min(lms.length, 33); i++) {
+        poseArr[i * 4]     = lms[i].x
+        poseArr[i * 4 + 1] = lms[i].y
+        poseArr[i * 4 + 2] = lms[i].z
+        poseArr[i * 4 + 3] = lms[i].visibility ?? 0.0
+      }
+    }
 
-        const handFeatures = new Float32Array(21 * 3)
-        for (let i = 0; i < 21; i++) {
-          const base = i * 3
-          handFeatures[base]     = lm[i].x
-          handFeatures[base + 1] = lm[i].y
-          handFeatures[base + 2] = lm[i].z
+    let leftHandArr: Float32Array | null = null
+    let rightHandArr: Float32Array | null = null
+
+    if (
+      handResult.landmarks &&
+      handResult.landmarks.length > 0 &&
+      handResult.handednesses &&
+      handResult.handednesses.length > 0
+    ) {
+      for (let h = 0; h < handResult.landmarks.length; h++) {
+        const lms = handResult.landmarks[h]
+        const handedness = handResult.handednesses[h]
+        if (!lms || !handedness || handedness.length === 0) continue
+
+        const label = handedness[0].categoryName // 'Left' or 'Right'
+        const arr = new Float32Array(21 * 3)
+        for (let i = 0; i < Math.min(lms.length, 21); i++) {
+          arr[i * 3]     = lms[i].x
+          arr[i * 3 + 1] = lms[i].y
+          arr[i * 3 + 2] = lms[i].z
         }
 
-        if (handednessCategory === 'left') {
-          result.leftHand = handFeatures
-        } else if (handednessCategory === 'right') {
-          result.rightHand = handFeatures
-        } else {
-          // Fallback: assign first detected hand to right hand, second hand to left hand
-          if (!result.rightHand) {
-            result.rightHand = handFeatures
-          } else {
-            result.leftHand = handFeatures
-          }
+        if (label === 'Left') {
+          leftHandArr = arr
+        } else if (label === 'Right') {
+          rightHandArr = arr
         }
       }
     }
+
+    return { pose: poseArr, leftHand: leftHandArr, rightHand: rightHandArr }
   } catch (err) {
-    console.warn('[ISL] Hand detection error:', err)
+    console.warn('[ISL] detectFrame error:', err)
+    return null
   }
-
-
-  return result
-}
-
-/**
- * Releases MediaPipe resources.
- * Call on component unmount.
- */
-export async function closeLandmarkers(): Promise<void> {
-  try {
-    if (_poseLandmarker) {
-      _poseLandmarker.close()
-      _poseLandmarker = null
-    }
-    if (_handLandmarker) {
-      _handLandmarker.close()
-      _handLandmarker = null
-    }
-  } catch {
-    // Ignore cleanup errors
-  }
-  _landmarkState = 'idle'
-  _initPromise = null
 }
